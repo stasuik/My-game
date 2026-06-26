@@ -34,15 +34,26 @@ public class VRConstructionController : MonoBehaviour
 
     private void OnTriggerPressed(InputAction.CallbackContext context)
     {
+        // Безопасность: если меню сейчас ОТКРЫТО, запрещаем строить на земле сквозь интерфейс
+        if (buildManager == null || roadBuilder == null) return;
+
+        // Если скрипт меню говорит, что Canvas активен — игнорируем клики по земле
+        // (чтобы клики по кнопкам меню не спавнили под ним дороги)
+        var menuController = GetComponent<VRMenuController>();
+        if (menuController != null && menuController.menuCanvas != null && menuController.menuCanvas.activeSelf)
+        {
+            return;
+        }
+
         Ray ray = new Ray(handTransform.position, handTransform.forward);
         RaycastHit hit;
 
-        // Пускаем луч в землю (слой земли берем из roadBuilder)
+        // Пускаем луч в землю
         if (Physics.Raycast(ray, out hit, maxBuildDistance, roadBuilder.terrainLayer))
         {
             Vector3 spawnPoint = hit.point;
 
-            // Проверяем, какой режим сейчас выбран в меню
+            // Четко проверяем, какой режим выбран в данный момент на кнопках
             switch (buildManager.currentMode)
             {
                 case BuildManager.BuildMode.Road:
@@ -59,6 +70,7 @@ public class VRConstructionController : MonoBehaviour
             }
         }
     }
+
 
     // Логика строительства дорог
     private void BuildRoadLogic(Vector3 point)
