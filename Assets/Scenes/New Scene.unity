@@ -205,10 +205,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a8d2b3b8fa46d784e88ed5f1f917dbed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  roadBuilder: {fileID: 0}
+  roadBuilder: {fileID: 98922584}
   buildManager: {fileID: 98922581}
-  handTransform: {fileID: 0}
-  triggerAction: {fileID: 0}
+  handTransform: {fileID: 1621170689}
+  triggerAction: {fileID: 83097790271614945, guid: c348712bda248c246b8c49b3db54643f, type: 3}
   maxBuildDistance: 50
 --- !u!114 &98922584
 MonoBehaviour:
@@ -222,10 +222,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 555271f5bd2176b49b008e9c46343635, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  splineContainerPrefab: {fileID: 0}
+  splineContainerPrefab: {fileID: 3180661995252876405, guid: b8b0e9c732bdf634583c1a04a254d867, type: 3}
+  roadSegmentPrefab: {fileID: 4901036142333088739, guid: 64bf00f68686f1945b5f1dbfaec3f479, type: 3}
   terrainLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 1
+  stepDistance: 2
+  roadHeightOffset: 0.25
 --- !u!4 &98922585
 Transform:
   m_ObjectHideFlags: 0
@@ -324,13 +327,25 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: 
-        m_MethodName: 
+      - m_Target: {fileID: 98922581}
+        m_TargetAssemblyTypeName: BuildManager, Assembly-CSharp
+        m_MethodName: SetBuildMode
+        m_Mode: 3
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+      - m_Target: {fileID: 98922582}
+        m_TargetAssemblyTypeName: VRMenuController, Assembly-CSharp
+        m_MethodName: CloseMenu
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: 
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
@@ -753,7 +768,7 @@ TerrainCollider:
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 1
   m_ExcludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -790,7 +805,7 @@ Terrain:
   m_StaticShadowCaster: 0
   m_IgnoreQualitySettings: 0
   m_ReflectionProbeUsage: 1
-  m_MaterialTemplate: {fileID: 2100000, guid: 76618f7490c40334fa7b685859587d2e, type: 2}
+  m_MaterialTemplate: {fileID: 2100000, guid: dc5641835490a894bafeae200094bcf4, type: 2}
   m_BakeLightProbesForTrees: 1
   m_PreserveTreePrototypeLayers: 0
   m_DeringLightProbesForTrees: 1
@@ -1395,6 +1410,11 @@ MonoBehaviour:
     m_InputActionReference: {fileID: 0}
     m_ObjectReferenceObject: {fileID: 0}
     m_ManualValue: 0
+--- !u!4 &1621170689 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2590386673263767968, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
+  m_PrefabInstance: {fileID: 2012865798}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1656195656
 GameObject:
   m_ObjectHideFlags: 0
@@ -1843,6 +1863,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3757550641821354111, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8182805871880892245, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
+      propertyPath: m_IsActive
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
