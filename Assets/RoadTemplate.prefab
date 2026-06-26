@@ -12,8 +12,8 @@ GameObject:
   - component: {fileID: 255945253193085298}
   - component: {fileID: 7268654268961355657}
   - component: {fileID: 1842850608013177468}
-  - component: {fileID: 2875711958936355457}
   - component: {fileID: 45096590781418765}
+  - component: {fileID: 1039860225695468971}
   m_Layer: 0
   m_Name: RoadTemplate
   m_TagString: Untagged
@@ -126,27 +126,6 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &2875711958936355457
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3180661995252876405}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 222dc08d484f16869bdd89edd9d368fc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_Container: {fileID: 255945253193085298}
-  m_RebuildOnSplineChange: 0
-  m_RebuildFrequency: 30
-  m_UpdateColliders: 1
-  m_Sides: 4
-  m_SegmentsPerUnit: 4
-  m_Capped: 1
-  m_Radius: 2
-  m_Range: {x: 0, y: 1}
 --- !u!64 &45096590781418765
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -169,3 +148,53 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: 4300000, guid: 79f5d922cd6e6a14d959da7bdbc2b241, type: 2}
+--- !u!114 &1039860225695468971
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3180661995252876405}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b74686beb0670a4ea61325c0acf4411, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Container: {fileID: 255945253193085298}
+  m_ItemsToInstantiate:
+  - prefab: {fileID: 0}
+    Prefab: {fileID: 919132149155446097, guid: 37b4a5610fefd2f429d512e0465c20c0, type: 3}
+    probability: 0
+    Probability: 0
+  m_Method: 1
+  m_Space: 0
+  m_Spacing: {x: 2, y: 2}
+  m_Up: 1
+  m_Forward: 2
+  m_PositionOffset:
+    setup: 0
+    min: {x: 0, y: 0, z: 0}
+    max: {x: 0, y: 0, z: 0}
+    randomX: 0
+    randomY: 0
+    randomZ: 0
+    space: 0
+  m_RotationOffset:
+    setup: 0
+    min: {x: 0, y: 0, z: 0}
+    max: {x: 0, y: 0, z: 0}
+    randomX: 0
+    randomY: 0
+    randomZ: 0
+    space: 0
+  m_ScaleOffset:
+    setup: 0
+    min: {x: 0, y: 0, z: 0}
+    max: {x: 0, y: 0, z: 0}
+    randomX: 0
+    randomY: 0
+    randomZ: 0
+    space: 0
+  m_DeprecatedInstances: []
+  m_AutoRefresh: 1
+  m_Seed: -193388
