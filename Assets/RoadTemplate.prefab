@@ -163,7 +163,7 @@ MonoBehaviour:
   m_Container: {fileID: 255945253193085298}
   m_ItemsToInstantiate:
   - prefab: {fileID: 0}
-    Prefab: {fileID: 919132149155446097, guid: 37b4a5610fefd2f429d512e0465c20c0, type: 3}
+    Prefab: {fileID: 4901036142333088739, guid: 64bf00f68686f1945b5f1dbfaec3f479, type: 3}
     probability: 0
     Probability: 0
   m_Method: 1
