@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 1842850608013177468}
   - component: {fileID: 45096590781418765}
   - component: {fileID: 7277702158558754334}
-  - component: {fileID: -829771436327833795}
+  - component: {fileID: -1653630772855738688}
   m_Layer: 0
   m_Name: RoadTemplate
   m_TagString: Untagged
@@ -170,7 +170,7 @@ MonoBehaviour:
   m_Capped: 1
   m_Radius: 0.25
   m_Range: {x: 0, y: 1}
---- !u!114 &-829771436327833795
+--- !u!114 &-1653630772855738688
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -179,17 +179,44 @@ MonoBehaviour:
   m_GameObject: {fileID: 3180661995252876405}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 29a074d529cf945029ef7cf40540c9df, type: 3}
+  m_Script: {fileID: 11500000, guid: 2b74686beb0670a4ea61325c0acf4411, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_Target: {fileID: 0}
-  m_PlayOnAwake: 1
-  m_LoopMode: 1
-  m_Method: 0
-  m_Duration: 1
-  m_MaxSpeed: 10
-  m_EasingMode: 0
-  m_AlignmentMode: 1
-  m_ObjectForwardAxis: 2
-  m_ObjectUpAxis: 1
-  m_StartOffset: 0
+  m_Container: {fileID: 255945253193085298}
+  m_ItemsToInstantiate:
+  - prefab: {fileID: 0}
+    Prefab: {fileID: 4901036142333088739, guid: 64bf00f68686f1945b5f1dbfaec3f479, type: 3}
+    probability: 0
+    Probability: 0
+  m_Method: 1
+  m_Space: 0
+  m_Spacing: {x: 2, y: 2}
+  m_Up: 1
+  m_Forward: 2
+  m_PositionOffset:
+    setup: 0
+    min: {x: 0, y: 0, z: 0}
+    max: {x: 0, y: 0, z: 0}
+    randomX: 0
+    randomY: 0
+    randomZ: 0
+    space: 0
+  m_RotationOffset:
+    setup: 0
+    min: {x: 0, y: 0, z: 0}
+    max: {x: 0, y: 0, z: 0}
+    randomX: 0
+    randomY: 0
+    randomZ: 0
+    space: 0
+  m_ScaleOffset:
+    setup: 0
+    min: {x: 0, y: 0, z: 0}
+    max: {x: 0, y: 0, z: 0}
+    randomX: 0
+    randomY: 0
+    randomZ: 0
+    space: 0
+  m_DeprecatedInstances: []
+  m_AutoRefresh: 0
+  m_Seed: 0
