@@ -222,12 +222,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 555271f5bd2176b49b008e9c46343635, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  modelRotationOffset: {x: 0, y: 90, z: 0}
   splineContainerPrefab: {fileID: 3180661995252876405, guid: b8b0e9c732bdf634583c1a04a254d867, type: 3}
   roadSegmentPrefab: {fileID: 4901036142333088739, guid: 64bf00f68686f1945b5f1dbfaec3f479, type: 3}
   terrainLayer:
     serializedVersion: 2
     m_Bits: 1
-  stepDistance: 2
+  stepDistance: 1
   roadHeightOffset: 0.25
 --- !u!4 &98922585
 Transform:

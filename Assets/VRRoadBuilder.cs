@@ -1,146 +1,200 @@
 using UnityEngine;
 using UnityEngine.Splines;
 using System.Collections.Generic;
+using Unity.Mathematics;
 
 public class VRRoadBuilder : MonoBehaviour
 {
-    public Vector3 modelRotationOffset = new Vector3(0, 90f, 0); // По умолчанию повернем на 90 градусов
+    public Vector3 modelRotationOffset = new Vector3(0, 90f, 0);
+
     [Header("Настройки строительства")]
-    public GameObject splineContainerPrefab; // Префаб RoadTemplate (теперь просто с SplineContainer)
-    public GameObject roadSegmentPrefab;     // СЮДА МЫ ЗАКИНИМ ТВОЙ FBX КУСОЧЕК ДОРОГИ!
-    public LayerMask terrainLayer;           // Слой земли (Terrain)
+    public GameObject splineContainerPrefab;
+    public GameObject roadSegmentPrefab;
+    public LayerMask terrainLayer;
 
     [Header("Настройки огибания рельефа")]
-    public float stepDistance = 2.0f;        // Расстояние между сегментами (равно длине твоей модели)
-    public float roadHeightOffset = 0.25f;
+    public float stepDistance = 2.0f;        // Длина модели дороги
+    public float roadHeightOffset = 0.03f;
 
     private SplineContainer currentSplineContainer;
     private Spline currentSpline;
-    private Vector3 lastConfirmedPoint;
 
-    // Список для хранения созданных 3D-кусочков текущей дороги, чтобы мы могли их обновлять
+    // Храним только ОФИЦИАЛЬНО ПОДТВЕРЖДЕННЫЕ опорные точки (без учета текущего положения джойстика)
+    private List<Vector3> confirmedPoints = new List<Vector3>();
     private List<GameObject> spawnedSegments = new List<GameObject>();
 
     public void StartNewRoad(Vector3 startPoint)
     {
-        // Очищаем список старой дороги
         spawnedSegments.Clear();
+        confirmedPoints.Clear();
 
         GameObject newRoadObj = Instantiate(splineContainerPrefab, Vector3.zero, Quaternion.identity);
         currentSplineContainer = newRoadObj.GetComponent<SplineContainer>();
         currentSpline = currentSplineContainer.Spline;
 
         Vector3 alignedStart = GetTerrainHeightAt(startPoint);
-        lastConfirmedPoint = alignedStart;
+        confirmedPoints.Add(alignedStart);
 
-        AddRawPoint(alignedStart);
+        // Строим первичный вид
+        UpdateSplineGeometry(alignedStart);
     }
 
-    public void AddPointToRoad(Vector3 targetPoint)
+    public void AddPointToRoad(Vector3 currentJoystickPoint)
     {
         if (currentSpline == null) return;
 
-        Vector3 alignedTarget = GetTerrainHeightAt(targetPoint);
-        float distance = Vector3.Distance(lastConfirmedPoint, alignedTarget);
+        // Точка ландшафта, на которую СЕЙЧАС указывает джойстик
+        Vector3 liveTarget = GetTerrainHeightAt(currentJoystickPoint);
+        Vector3 lastConfirmed = confirmedPoints[confirmedPoints.Count - 1];
 
-        if (distance < 0.2f) return;
+        // Считаем дистанцию по горизонтали от последней зафиксированной точки до джойстика
+        float distanceXZ = Vector2.Distance(new Vector2(lastConfirmed.x, lastConfirmed.z),
+                                            new Vector2(liveTarget.x, liveTarget.z));
 
-        // Плавно заполняем путь точками по рельефу ландшафта
-        if (distance > stepDistance)
+        // ЕСЛИ ДЖОЙСТИК УШЕЛ ДАЛЕКО: фиксируем новые постоянные шаги
+        if (distanceXZ >= stepDistance)
         {
-            int segmentsCount = Mathf.FloorToInt(distance / stepDistance);
-            for (int i = 1; i <= segmentsCount; i++)
+            int stepsToFix = Mathf.FloorToInt(distanceXZ / stepDistance);
+            Vector3 currentPos = lastConfirmed;
+
+            for (int i = 1; i <= stepsToFix; i++)
             {
-                float ratio = (float)i / segmentsCount;
-                Vector3 intermediatePoint = Vector3.Lerp(lastConfirmedPoint, alignedTarget, ratio);
-                Vector3 snappedToTerrain = GetTerrainHeightAt(intermediatePoint);
-                AddRawPoint(snappedToTerrain);
+                float ratio = (float)i / stepsToFix;
+                float nextX = Mathf.Lerp(lastConfirmed.x, liveTarget.x, ratio);
+                float nextZ = Mathf.Lerp(lastConfirmed.z, liveTarget.z, ratio);
+
+                Vector3 projectedPoint = GetTerrainHeightAt(new Vector3(nextX, currentPos.y, nextZ));
+                confirmedPoints.Add(projectedPoint);
+                currentPos = projectedPoint;
             }
         }
-        else
+
+        // ВАЖНО: Мы всегда перестраиваем сплайн, передавая туда ТЕКУЩУЮ «живую» точку джойстика
+        UpdateSplineGeometry(liveTarget);
+    }
+
+    // Полное обновление сплайна и анимированное вытягивание кусков
+    private void UpdateSplineGeometry(Vector3 livePoint)
+    {
+        currentSpline.Clear();
+
+        // 1. Сначала добавляем в сплайн все стационарные подтвержденные точки
+        for (int i = 0; i < confirmedPoints.Count; i++)
         {
-            AddRawPoint(alignedTarget);
+            AddKnotToSpline(confirmedPoints[i]);
         }
 
-        lastConfirmedPoint = alignedTarget;
+        // 2. Если джойстик сместился от последней точки, добавляем его позицию как временный "хвост"
+        Vector3 lastFixed = confirmedPoints[confirmedPoints.Count - 1];
+        if (Vector3.Distance(lastFixed, livePoint) > 0.1f)
+        {
+            AddKnotToSpline(livePoint);
+        }
 
-        // Вручную спавним 3D-модели вместо заглючившего компонента Unity!
-        BuildMeshManually();
+        // 3. Пересчитываем тангенсы сглаживания для всех точек
+        for (int i = 0; i < currentSpline.Count; i++)
+        {
+            currentSpline.SetTangentMode(i, TangentMode.AutoSmooth);
+        }
+
+        // 4. Генерируем 3D пропы вдоль обновленного сплайна
+        BuildRoadAlongSpline();
     }
 
-    private void AddRawPoint(Vector3 position)
+    private void AddKnotToSpline(Vector3 worldPosition)
     {
+        Vector3 localPos = currentSplineContainer.transform.InverseTransformPoint(worldPosition);
+        localPos.y += roadHeightOffset;
+
         BezierKnot newKnot = new BezierKnot();
-        newKnot.Position = position + new Vector3(0, roadHeightOffset, 0);
+        newKnot.Position = localPos;
         currentSpline.Add(newKnot);
-        currentSpline.SetTangentMode(currentSpline.Count - 1, TangentMode.Linear);
     }
 
-    // НАШ СОБСТВЕННЫЙ ЖЕСТКИЙ МЕТОД СПАВНА 3D ДОРОГИ
-    private void BuildMeshManually()
+    private void BuildRoadAlongSpline()
     {
         if (currentSpline == null || roadSegmentPrefab == null) return;
 
-        // Удаляем старые куски дороги
         foreach (GameObject seg in spawnedSegments)
         {
             Destroy(seg);
         }
         spawnedSegments.Clear();
 
-        // Идем по всем точкам сплайна
-        for (int i = 1; i < currentSpline.Count; i++)
+        float totalLength = currentSpline.GetLength();
+        if (totalLength < 0.1f) return;
+
+        // Магия плавности: теперь мы делим общую длину на длину модельки дробно (float)
+        float segmentsCountFloat = totalLength / stepDistance;
+        int numberOfSegments = Mathf.FloorToInt(segmentsCountFloat);
+
+        // Будем спавнить столько целых кусков, сколько влезает
+        for (int i = 0; i < numberOfSegments; i++)
         {
-            Vector3 posA = currentSpline[i - 1].Position;
-            Vector3 posB = currentSpline[i].Position;
+            float distanceOnSpline = (i * stepDistance) + (stepDistance * 0.5f);
+            SpawnSegmentAtDistance(distanceOnSpline, totalLength, 1.0f); // Обычный масштаб 1:1
+        }
 
-            // 1. Центр спавна — строго между точками А и Б
-            Vector3 spawnPos = Vector3.Lerp(posA, posB, 0.5f);
+        // КРАСИВЫЙ ХВОСТ: если остался недостроенный кусочек до джойстика, мы его плавно растягиваем!
+        float remainder = totalLength - (numberOfSegments * stepDistance);
+        if (remainder > 0.1f && numberOfSegments >= 0)
+        {
+            // Центр последнего растягиваемого куска
+            float distanceOnSpline = (numberOfSegments * stepDistance) + (remainder * 0.5f);
+            float customScaleZ = remainder / stepDistance; // Вычисляем коэффициент растяжения
 
-            // 2. Считаем направление вектора от А к Б (включая высоту Y!)
-            Vector3 direction = posB - posA;
-            float actualDistance = direction.magnitude; // Реальное расстояние с учетом уклона
-
-            if (actualDistance < 0.01f) continue;
-
-            // 3. Создаем вращение, которое смотрит точно на следующую точку (учитывает наклон холма)
-            Quaternion spawnRot = Quaternion.LookRotation(direction.normalized);
-
-            // Применяем наш зафиксированный сдвиг на 90 градусов, чтобы дорога не вставала боком
-            spawnRot *= Quaternion.Euler(modelRotationOffset);
-
-            // Спавним кусок дороги
-            GameObject newSegment = Instantiate(roadSegmentPrefab, spawnPos, spawnRot, currentSplineContainer.transform);
-
-            // 4. УМНОЕ РАСТЯЖЕНИЕ: Подгоняем длину модельки (ось Z) под реальное расстояние между точками
-            // По умолчанию шаг stepDistance равен 2. Мы берем текущий масштаб и корректируем его
-            Vector3 currentScale = newSegment.transform.localScale;
-            float scaleMultiplier = actualDistance / stepDistance;
-
-            // ВНИМАНИЕ: Если в Blender твоя модель вытянута вдоль оси Z, то меняем Z. 
-            // Если лесенка была по оси X, замени ниже Z на X.
-            newSegment.transform.localScale = new Vector3(currentScale.x, currentScale.y, currentScale.z * scaleMultiplier);
-
-            // Добавляем коллайдер
-            if (newSegment.GetComponent<Collider>() == null)
-            {
-                newSegment.AddComponent<MeshCollider>();
-            }
-
-            spawnedSegments.Add(newSegment);
+            SpawnSegmentAtDistance(distanceOnSpline, totalLength, customScaleZ);
         }
     }
 
+    private void SpawnSegmentAtDistance(float distance, float totalLength, float scaleZMultiplier)
+    {
+        float t = distance / totalLength;
+
+        float3 localPos, localForward, localUp;
+        currentSpline.Evaluate(t, out localPos, out localForward, out localUp);
+
+        Vector3 worldPos = currentSplineContainer.transform.TransformPoint(localPos);
+        Vector3 worldForward = currentSplineContainer.transform.TransformDirection(localForward);
+        Vector3 worldUp = GetTerrainNormalAt(worldPos);
+
+        Quaternion spawnRot = Quaternion.LookRotation(worldForward.normalized, worldUp);
+        spawnRot *= Quaternion.Euler(modelRotationOffset);
+
+        GameObject newSegment = Instantiate(roadSegmentPrefab, worldPos, spawnRot, currentSplineContainer.transform);
+
+        // Применяем масштаб: целые куски будут 1.0, а самый крайний у джойстика будет плавно расти от 0 до 1.0
+        Vector3 currentScale = newSegment.transform.localScale;
+        newSegment.transform.localScale = new Vector3(currentScale.x, currentScale.y, currentScale.z * scaleZMultiplier);
+
+        if (newSegment.GetComponent<Collider>() == null)
+        {
+            newSegment.AddComponent<MeshCollider>();
+        }
+
+        spawnedSegments.Add(newSegment);
+    }
 
     private Vector3 GetTerrainHeightAt(Vector3 originPos)
+    {
+        Vector3 rayStart = new Vector3(originPos.x, originPos.y + 100f, originPos.z);
+        RaycastHit hit;
+        if (Physics.Raycast(rayStart, Vector3.down, out hit, 200f, terrainLayer))
+        {
+            return hit.point;
+        }
+        return originPos;
+    }
+
+    private Vector3 GetTerrainNormalAt(Vector3 originPos)
     {
         Vector3 rayStart = new Vector3(originPos.x, originPos.y + 50f, originPos.z);
         RaycastHit hit;
         if (Physics.Raycast(rayStart, Vector3.down, out hit, 100f, terrainLayer))
         {
-            return hit.point;
+            return hit.normal;
         }
-        return originPos;
+        return Vector3.up;
     }
 
     public void FinishRoad()
@@ -148,5 +202,6 @@ public class VRRoadBuilder : MonoBehaviour
         currentSplineContainer = null;
         currentSpline = null;
         spawnedSegments.Clear();
+        confirmedPoints.Clear();
     }
 }
