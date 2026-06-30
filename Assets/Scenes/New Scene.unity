@@ -154,9 +154,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 12790eaedd028d34085a979a500c8148, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  currentMode: 0
-  busStopPrefab: {fileID: 0}
-  borderPrefab: {fileID: 0}
+  catalog:
+  - {fileID: 11400000, guid: b147e8a51d026ea47a12c938e9c93231, type: 2}
+  - {fileID: 11400000, guid: 21f6a66026a358142b066732570aff53, type: 2}
 --- !u!114 &98922582
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -222,14 +222,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 555271f5bd2176b49b008e9c46343635, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  modelRotationOffset: {x: 0, y: 90, z: 0}
-  splineContainerPrefab: {fileID: 3180661995252876405, guid: b8b0e9c732bdf634583c1a04a254d867, type: 3}
-  roadSegmentPrefab: {fileID: 4901036142333088739, guid: 64bf00f68686f1945b5f1dbfaec3f479, type: 3}
   terrainLayer:
     serializedVersion: 2
     m_Bits: 1
-  stepDistance: 1
-  roadHeightOffset: 0.25
+  modelRotationOffset: {x: 0, y: 90, z: 0}
+  bridgePillarPrefab: {fileID: 0}
 --- !u!4 &98922585
 Transform:
   m_ObjectHideFlags: 0
@@ -957,6 +954,79 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 800, y: 500}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1001 &1191035244
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 12.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 27.87
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 25.58
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 505829063548239086, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 7b2b068bac67fdd41a8f2705dc8553e5, type: 2}
+    - target: {fileID: 919132149155446097, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
+      propertyPath: m_Name
+      value: untitled
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4613ee6788efbd84b91248f3ef0e7206, type: 3}
 --- !u!1 &1324276666
 GameObject:
   m_ObjectHideFlags: 0
@@ -1828,15 +1898,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3757550641821354111, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 3.68
+      value: 46.25
       objectReference: {fileID: 0}
     - target: {fileID: 3757550641821354111, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.86
+      value: 103.13
       objectReference: {fileID: 0}
     - target: {fileID: 3757550641821354111, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 2.09
+      value: 40.91
       objectReference: {fileID: 0}
     - target: {fileID: 3757550641821354111, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
       propertyPath: m_LocalRotation.w
@@ -1960,7 +2030,31 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 2046494651}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 98922581}
+        m_TargetAssemblyTypeName: BuildManager, Assembly-CSharp
+        m_MethodName: SetBuildMode
+        m_Mode: 3
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 1
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+      - m_Target: {fileID: 98922582}
+        m_TargetAssemblyTypeName: VRMenuController, Assembly-CSharp
+        m_MethodName: CloseMenu
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &2046494651
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2019,3 +2113,4 @@ SceneRoots:
   - {fileID: 1112084854}
   - {fileID: 1324276669}
   - {fileID: 98922585}
+  - {fileID: 1191035244}

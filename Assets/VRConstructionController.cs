@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -11,124 +10,134 @@ public class VRConstructionController : MonoBehaviour
     public VRRoadBuilder roadBuilder;
     public BuildManager buildManager;
     public Transform handTransform;
-    public InputActionReference triggerAction; // Сюда привязан ваш курок
+    public InputActionReference triggerAction;
 
     [Header("Настройки луча")]
     public float maxBuildDistance = 50f;
 
     private ConstructionState currentState = ConstructionState.Idle;
-    private List<Vector3> roadPoints = new List<Vector3>();
-
+    private List<Vector3> buildPoints = new List<Vector3>();
     private bool wasTriggerPressedLastFrame = false;
+    private float initialBuildHeight = 0f; // Фиксация высоты для мостов
+
+    private VRMenuController menuController;
+
+    private void Awake()
+    {
+        menuController = GetComponent<VRMenuController>();
+    }
 
     private void Update()
     {
-        if (buildManager == null || roadBuilder == null || triggerAction == null || triggerAction.action != null)
+        if (buildManager == null || roadBuilder == null || buildManager.CurrentItem == null ||
+            triggerAction == null || triggerAction.action == null || handTransform == null)
         {
-            // ПРОВЕРКА НАПРЯМУЮ: если action не инициализирован — выходим, чтобы не было ошибок
-            if (triggerAction?.action == null) return;
-        }
-
-        // Надежный опрос курка в реальном времени
-        bool isTriggerHeld = triggerAction.action.IsPressed() || triggerAction.action.ReadValue<float>() > 0.5f;
-
-        var menuController = GetComponent<VRMenuController>();
-        if (menuController != null && menuController.menuCanvas != null && menuController.menuCanvas.activeSelf)
-        {
-            if (currentState == ConstructionState.Building) CancelConstruction();
             return;
         }
 
-        // РЕЖИМ 1: НАЖАТИЕ КУРКА
+        bool isTriggerHeld = triggerAction.action.IsPressed() || triggerAction.action.ReadValue<float>() > 0.5f;
+
+        if (menuController != null && menuController.menuCanvas != null && menuController.menuCanvas.activeSelf)
+        {
+            if (currentState == ConstructionState.Building) CancelConstruction();
+            wasTriggerPressedLastFrame = isTriggerHeld;
+            return;
+        }
+
+        BuildableItem currentItem = buildManager.CurrentItem;
+
+        // 1. НАЖАТИЕ КУРКА
         if (isTriggerHeld && !wasTriggerPressedLastFrame)
         {
-            if (buildManager.currentMode == BuildManager.BuildMode.Road)
+            if (currentItem.isSplineType)
             {
                 currentState = ConstructionState.Building;
-                roadPoints.Clear();
+                buildPoints.Clear();
 
-                if (GetLaserHitPoint(out Vector3 hitPoint, out Vector3 normal))
+                if (GetLaserHitPoint(out Vector3 hitPoint, out _))
                 {
-                    roadPoints.Add(hitPoint);
+                    buildPoints.Add(hitPoint);
+                    initialBuildHeight = hitPoint.y; // Запоминаем высоту старта
                 }
             }
             else
             {
-                HandleSinglePlacement();
+                HandleSinglePlacement(currentItem);
             }
         }
 
-        // РЕЖИМ 2: УДЕРЖАНИЕ КУРКА (ТЯНЕМ ДОРОГУ)
+        // 2. УДЕРЖАНИЕ КУРКА
         if (isTriggerHeld && wasTriggerPressedLastFrame && currentState == ConstructionState.Building)
         {
-            if (buildManager.currentMode == BuildManager.BuildMode.Road && GetLaserHitPoint(out Vector3 currentHitPoint, out Vector3 normal))
+            if (currentItem.isSplineType && GetLaserHitPoint(out Vector3 currentHitPoint, out _))
             {
-                Vector3 lastFixedPoint = roadPoints[roadPoints.Count - 1];
+                // Если это мост, принудительно держим высоту старта
+                if (!currentItem.snapToTerrain)
+                {
+                    currentHitPoint.y = initialBuildHeight;
+                }
 
+                Vector3 lastFixedPoint = buildPoints[buildPoints.Count - 1];
                 float distanceXZ = Vector2.Distance(new Vector2(lastFixedPoint.x, lastFixedPoint.z),
                                                     new Vector2(currentHitPoint.x, currentHitPoint.z));
 
-                // Если рука ушла дальше 146 метров — фиксируем монолитную точку в память
-                if (distanceXZ >= roadBuilder.stepDistance)
+                if (distanceXZ >= currentItem.stepDistance)
                 {
                     Vector3 direction = (currentHitPoint - lastFixedPoint).normalized;
-                    Vector3 nextPoint = lastFixedPoint + (direction * roadBuilder.stepDistance);
+                    Vector3 nextPoint = lastFixedPoint + (direction * currentItem.stepDistance);
 
-                    nextPoint = GetTerrainHeightAt(nextPoint);
-                    roadPoints.Add(nextPoint);
-                    lastFixedPoint = nextPoint; // Обновляем локальную переменную для расчета хвоста
+                    if (currentItem.snapToTerrain)
+                    {
+                        nextPoint = GetTerrainHeightAt(nextPoint);
+                    }
+                    else
+                    {
+                        nextPoint.y = initialBuildHeight;
+                    }
+
+                    buildPoints.Add(nextPoint);
+                    lastFixedPoint = nextPoint;
                 }
 
-                // ИСПРАВЛЕНО: Создаем массив для превью
-                List<Vector3> previewPoints = new List<Vector3>(roadPoints);
-
-                // Магия плавности: если джойстик отошел от последней фиксированной точки хотя бы на 20 см,
-                // мы принудительно добавляем текущую точку луча в качестве финала. 
-                // Это гарантирует, что points.Count ВСЕГДА будет >= 2, и призрак отобразится сразу!
+                List<Vector3> previewPoints = new List<Vector3>(buildPoints);
                 if (Vector3.Distance(lastFixedPoint, currentHitPoint) > 0.2f)
                 {
                     previewPoints.Add(currentHitPoint);
                 }
                 else if (previewPoints.Count == 1)
                 {
-                    // Защита для самого первого кадра: дублируем стартовую точку, чтобы не ломать метод
                     previewPoints.Add(currentHitPoint + new Vector3(0.01f, 0, 0));
                 }
 
-                // Непрерывно рисуем призрак дороги
-                roadBuilder.DrawGhostRoad(previewPoints);
+                roadBuilder.DrawGhostRoad(previewPoints, currentItem);
             }
         }
 
-        // РЕЖИМ 3: ОТПУСКАНИЕ КУРКА
+        // 3. ОТПУСКАНИЕ КУРКА
         if (!isTriggerHeld && wasTriggerPressedLastFrame)
         {
             if (currentState == ConstructionState.Building)
             {
                 currentState = ConstructionState.Idle;
-
-                // Запекаем готовую дорогу
-                roadBuilder.BuildFinalRoad(roadPoints);
-                roadPoints.Clear();
+                roadBuilder.BuildFinalRoad(buildPoints, currentItem);
+                buildPoints.Clear();
             }
         }
 
         wasTriggerPressedLastFrame = isTriggerHeld;
     }
 
-
     private void CancelConstruction()
     {
         currentState = ConstructionState.Idle;
-        roadPoints.Clear();
+        buildPoints.Clear();
         if (roadBuilder != null) roadBuilder.ClearGhostRoad();
     }
 
     private bool GetLaserHitPoint(out Vector3 hitPoint, out Vector3 hitNormal)
     {
         Ray ray = new Ray(handTransform.position, handTransform.forward);
-        RaycastHit hit;
-        if (Physics.Raycast(ray, out hit, maxBuildDistance, roadBuilder.terrainLayer))
+        if (Physics.Raycast(ray, out RaycastHit hit, maxBuildDistance, roadBuilder.terrainLayer))
         {
             hitPoint = hit.point;
             hitNormal = hit.normal;
@@ -142,25 +151,17 @@ public class VRConstructionController : MonoBehaviour
     private Vector3 GetTerrainHeightAt(Vector3 originPos)
     {
         Vector3 rayStart = new Vector3(originPos.x, originPos.y + 50f, originPos.z);
-        RaycastHit hit;
-        if (Physics.Raycast(rayStart, Vector3.down, out hit, 100f, roadBuilder.terrainLayer))
+        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 100f, roadBuilder.terrainLayer))
         {
             return hit.point;
         }
         return originPos;
     }
 
-    private void HandleSinglePlacement()
+    private void HandleSinglePlacement(BuildableItem item)
     {
         if (GetLaserHitPoint(out Vector3 spawnPoint, out Vector3 groundNormal))
         {
-            GameObject prefabToSpawn = null;
-
-            if (buildManager.currentMode == BuildManager.BuildMode.BusStop) prefabToSpawn = buildManager.busStopPrefab;
-            if (buildManager.currentMode == BuildManager.BuildMode.Border) prefabToSpawn = buildManager.borderPrefab;
-
-            if (prefabToSpawn == null) return;
-
             Quaternion spawnRotation = Quaternion.FromToRotation(Vector3.up, groundNormal);
             Vector3 lookDirection = handTransform.position - spawnPoint;
             lookDirection.y = 0;
@@ -170,12 +171,11 @@ public class VRConstructionController : MonoBehaviour
                 spawnRotation = facePlayerRot * Quaternion.FromToRotation(Vector3.up, groundNormal);
             }
 
-            Instantiate(prefabToSpawn, spawnPoint, spawnRotation);
+            Instantiate(item.finalPrefab, spawnPoint, spawnRotation);
             roadBuilder.ClearGhostRoad();
         }
     }
 
-    // На всякий случай очищаем призраков при выключении скрипта
     private void OnDisable()
     {
         CancelConstruction();
