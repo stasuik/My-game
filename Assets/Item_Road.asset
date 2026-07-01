@@ -19,3 +19,8 @@ MonoBehaviour:
   snapToTerrain: 1
   stepDistance: 1.4
   heightOffset: 0.02
+  generatePillars: 0
+  pillarWidth: 0.3
+  minPillarHeight: 1.5
+  pillarMaterial: {fileID: 0}
+  singleSpan: 0

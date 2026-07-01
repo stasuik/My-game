@@ -575,7 +575,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "\u0442\u0435\u0441\u04421\n"
+  m_Text: "\u0414\u043E\u0440\u043E\u0433\u0430"
 --- !u!222 &256186256
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -729,7 +729,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "\u0442\u0435\u0441\u04422"
+  m_Text: "\u041C\u043E\u0441\u0442"
 --- !u!222 &627770512
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -1144,7 +1144,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "\u0442\u0435\u0441\u04423"
+  m_Text: "\u0422\u0438\u043F 3"
 --- !u!222 &1427964867
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -1898,15 +1898,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3757550641821354111, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 46.25
+      value: 59.97
       objectReference: {fileID: 0}
     - target: {fileID: 3757550641821354111, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 103.13
+      value: 1.908
       objectReference: {fileID: 0}
     - target: {fileID: 3757550641821354111, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 40.91
+      value: 57.26
       objectReference: {fileID: 0}
     - target: {fileID: 3757550641821354111, guid: 34f3b8f8970cd2c4089ecc34866b077e, type: 3}
       propertyPath: m_LocalRotation.w

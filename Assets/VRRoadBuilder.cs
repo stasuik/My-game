@@ -3,30 +3,41 @@ using System.Collections.Generic;
 
 public class VRRoadBuilder : MonoBehaviour
 {
-    [Header("Настройки слоев")]
-    [Tooltip("Слой ландшафта (Terrain), по которому лазер определяет землю")]
+    [Header("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ")]
+    [Tooltip("пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (Terrain), пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ")]
     public LayerMask terrainLayer;
 
-    [Tooltip("Дополнительный доворот моделей в локальных координатах, если они встают боком")]
+    [Tooltip("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)")]
     public Vector3 modelRotationOffset = Vector3.zero;
 
-    [Header("Настройки мостов")]
-    [Tooltip("Префаб вертикальной колонны-опоры, которая будет расти вниз до земли")]
+    [Header("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ")]
+    [Tooltip("пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ-пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ")]
     public GameObject bridgePillarPrefab;
 
     private GameObject ghostContainer;
 
-    /// <summary>
-    /// Отрисовка временного "призрачного" пути (пока игрок держит курок)
-    /// </summary>
+    private Vector3 GetRotationOffset(BuildableItem item)
+    {
+        if (item != null && item.rotationOffset != Vector3.zero)
+            return item.rotationOffset;
+        return modelRotationOffset;
+    }
+
     public void DrawGhostRoad(List<Vector3> points, BuildableItem item)
     {
         ClearGhostRoad();
-
-        GameObject prefabToUse = item.ghostPrefab != null ? item.ghostPrefab : item.finalPrefab;
-        if (points.Count < 2 || prefabToUse == null) return;
+        if (points.Count < 2) return;
 
         ghostContainer = new GameObject("[GHOST_STRUCTURE]");
+
+        if (item.singleSpan)
+        {
+            DrawGhostSingleSpan(points[0], points[points.Count - 1], item);
+            return;
+        }
+
+        GameObject prefabToUse = item.ghostPrefab != null ? item.ghostPrefab : item.finalPrefab;
+        if (prefabToUse == null) return;
 
         for (int i = 1; i < points.Count; i++)
         {
@@ -40,21 +51,18 @@ public class VRRoadBuilder : MonoBehaviour
             Vector3 spawnPos = Vector3.Lerp(posA, posB, 0.5f);
             spawnPos.y += item.heightOffset;
 
-            // Если объект привязан к земле — берем нормаль земли, если это мост — смотрим строго вверх
             Vector3 groundNormal = item.snapToTerrain ? GetTerrainNormalAt(spawnPos) : Vector3.up;
 
             Quaternion spawnRot = Quaternion.LookRotation(direction.normalized, groundNormal);
-            spawnRot *= Quaternion.Euler(modelRotationOffset);
+            spawnRot *= Quaternion.Euler(GetRotationOffset(item));
 
             GameObject ghostSeg = Instantiate(prefabToUse, spawnPos, spawnRot, ghostContainer.transform);
 
-            // Отключаем физику у призраков, чтобы луч лазера не спотыкался о них
             foreach (var col in ghostSeg.GetComponentsInChildren<Collider>())
             {
                 Destroy(col);
             }
 
-            // Динамическое масштабирование последнего хвоста по оси Z до точки лазера
             if (i == points.Count - 1)
             {
                 float scaleMultiplier = actualDistance / item.stepDistance;
@@ -62,23 +70,58 @@ public class VRRoadBuilder : MonoBehaviour
                 ghostSeg.transform.localScale = new Vector3(currentScale.x, currentScale.y, currentScale.z * scaleMultiplier);
             }
 
-            // Спавн призрака опоры, если это мост
-            if (!item.snapToTerrain && bridgePillarPrefab != null)
+            if (!item.snapToTerrain && item.generatePillars)
             {
-                SpawnPillar(spawnPos, ghostContainer.transform, true);
+                SpawnPillar(spawnPos, ghostContainer.transform, true, item);
             }
         }
     }
 
-    /// <summary>
-    /// Строит финальную физическую дорогу на сцене (когда игрок отпустил курок)
-    /// </summary>
+    private void DrawGhostSingleSpan(Vector3 start, Vector3 end, BuildableItem item)
+    {
+        GameObject prefabToUse = item.ghostPrefab != null ? item.ghostPrefab : item.finalPrefab;
+        if (prefabToUse == null) return;
+
+        Vector3 direction = end - start;
+        float totalDistance = direction.magnitude;
+        if (totalDistance < 0.1f) return;
+
+        Vector3 midPoint = Vector3.Lerp(start, end, 0.5f);
+        midPoint.y += item.heightOffset;
+
+        Vector3 groundNormal = item.snapToTerrain ? GetTerrainNormalAt(midPoint) : Vector3.up;
+        Quaternion spanRot = Quaternion.LookRotation(direction.normalized, groundNormal);
+        spanRot *= Quaternion.Euler(GetRotationOffset(item));
+
+        GameObject ghostSeg = Instantiate(prefabToUse, midPoint, spanRot, ghostContainer.transform);
+
+        foreach (var col in ghostSeg.GetComponentsInChildren<Collider>())
+        {
+            Destroy(col);
+        }
+
+        float scaleMultiplier = totalDistance / item.stepDistance;
+        Vector3 currentScale = ghostSeg.transform.localScale;
+        ghostSeg.transform.localScale = new Vector3(currentScale.x, currentScale.y, currentScale.z * scaleMultiplier);
+
+        if (!item.snapToTerrain && item.generatePillars)
+        {
+            SpawnPillarsAlongSpan(start, end, ghostContainer.transform, true, item);
+        }
+    }
+
     public void BuildFinalRoad(List<Vector3> points, BuildableItem item)
     {
         ClearGhostRoad();
         if (points.Count < 2 || item.finalPrefab == null) return;
 
         GameObject finalContainer = new GameObject("Built_" + item.itemName);
+
+        if (item.singleSpan)
+        {
+            BuildFinalSingleSpan(points[0], points[points.Count - 1], finalContainer, item);
+            return;
+        }
 
         for (int i = 1; i < points.Count; i++)
         {
@@ -95,11 +138,10 @@ public class VRRoadBuilder : MonoBehaviour
             Vector3 groundNormal = item.snapToTerrain ? GetTerrainNormalAt(spawnPos) : Vector3.up;
 
             Quaternion spawnRot = Quaternion.LookRotation(direction.normalized, groundNormal);
-            spawnRot *= Quaternion.Euler(modelRotationOffset);
+            spawnRot *= Quaternion.Euler(GetRotationOffset(item));
 
             GameObject permanentSegment = Instantiate(item.finalPrefab, spawnPos, spawnRot, finalContainer.transform);
 
-            // Точное масштабирование крайнего куска по оси Z
             if (i == points.Count - 1)
             {
                 float scaleMultiplier = actualDistance / item.stepDistance;
@@ -107,7 +149,6 @@ public class VRRoadBuilder : MonoBehaviour
                 permanentSegment.transform.localScale = new Vector3(currentScale.x, currentScale.y, currentScale.z * scaleMultiplier);
             }
 
-            // Автоматически добавляем MeshCollider на все меши построенного объекта
             foreach (var renderer in permanentSegment.GetComponentsInChildren<MeshRenderer>())
             {
                 if (renderer.gameObject.GetComponent<Collider>() == null)
@@ -116,16 +157,48 @@ public class VRRoadBuilder : MonoBehaviour
                 }
             }
 
-            // Спавн реальной физической опоры, если строится мост
-            if (!item.snapToTerrain && bridgePillarPrefab != null)
+            if (!item.snapToTerrain && item.generatePillars)
             {
-                SpawnPillar(spawnPos, finalContainer.transform, false);
+                SpawnPillar(spawnPos, finalContainer.transform, false, item);
             }
         }
     }
 
+    private void BuildFinalSingleSpan(Vector3 start, Vector3 end, GameObject container, BuildableItem item)
+    {
+        Vector3 direction = end - start;
+        float totalDistance = direction.magnitude;
+        if (totalDistance < 0.1f) return;
+
+        Vector3 midPoint = Vector3.Lerp(start, end, 0.5f);
+        midPoint.y += item.heightOffset;
+
+        Vector3 groundNormal = item.snapToTerrain ? GetTerrainNormalAt(midPoint) : Vector3.up;
+        Quaternion spanRot = Quaternion.LookRotation(direction.normalized, groundNormal);
+        spanRot *= Quaternion.Euler(GetRotationOffset(item));
+
+        GameObject bridgeSpan = Instantiate(item.finalPrefab, midPoint, spanRot, container.transform);
+
+        float scaleMultiplier = totalDistance / item.stepDistance;
+        Vector3 currentScale = bridgeSpan.transform.localScale;
+        bridgeSpan.transform.localScale = new Vector3(currentScale.x, currentScale.y, currentScale.z * scaleMultiplier);
+
+        foreach (var renderer in bridgeSpan.GetComponentsInChildren<MeshRenderer>())
+        {
+            if (renderer.gameObject.GetComponent<Collider>() == null)
+            {
+                renderer.gameObject.AddComponent<MeshCollider>();
+            }
+        }
+
+        if (!item.snapToTerrain && item.generatePillars)
+        {
+            SpawnPillarsAlongSpan(start, end, container.transform, false, item);
+        }
+    }
+
     /// <summary>
-    /// Очистка призрачных объектов со сцены
+    /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     /// </summary>
     public void ClearGhostRoad()
     {
@@ -133,35 +206,30 @@ public class VRRoadBuilder : MonoBehaviour
     }
 
     /// <summary>
-    /// Метод для спавна и динамического растягивания опор моста строго вниз до земли
+    /// пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     /// </summary>
-    private void SpawnPillar(Vector3 segmentPosition, Transform parent, bool isGhost)
+    private void SpawnPillar(Vector3 segmentPosition, Transform parent, bool isGhost, BuildableItem item)
     {
-        // Пускаем луч из центра сегмента моста строго вниз
-        if (Physics.Raycast(segmentPosition, Vector3.down, out RaycastHit hit, 200f, terrainLayer))
+        if (!Physics.Raycast(segmentPosition, Vector3.down, out RaycastHit hit, 200f, terrainLayer))
+            return;
+
+        float distanceToGround = hit.distance;
+        if (distanceToGround < item.minPillarHeight) return;
+
+        Vector3 pillarSpawnPos = segmentPosition + (Vector3.down * (distanceToGround / 2f));
+
+        if (bridgePillarPrefab != null)
         {
-            float distanceToGround = hit.distance;
-
-            // Если мост слишком близко к земле (выходит на склон холма), опора не нужна
-            if (distanceToGround < 1.5f) return;
-
-            // Находим точку спавна ровно посередине между пролетом моста и землей
-            Vector3 pillarSpawnPos = segmentPosition + (Vector3.down * (distanceToGround / 2f));
-
             GameObject pillar = Instantiate(bridgePillarPrefab, pillarSpawnPos, Quaternion.identity, parent);
-
-            // Масштабируем опору по оси Y, чтобы она коснулась земли
             Vector3 pillarScale = pillar.transform.localScale;
-            pillar.transform.localScale = new Vector3(pillarScale.x, distanceToGround / 2f, pillarScale.z);
+            pillar.transform.localScale = new Vector3(pillarScale.x, distanceToGround, pillarScale.z);
 
             if (isGhost)
             {
-                // У призрака опоры удаляем коллайдеры
                 foreach (var col in pillar.GetComponentsInChildren<Collider>()) Destroy(col);
             }
             else
             {
-                // Финальной опоре генерируем физику
                 foreach (var renderer in pillar.GetComponentsInChildren<MeshRenderer>())
                 {
                     if (renderer.gameObject.GetComponent<Collider>() == null)
@@ -169,10 +237,69 @@ public class VRRoadBuilder : MonoBehaviour
                 }
             }
         }
+        else
+        {
+            GameObject pillar = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            pillar.transform.SetParent(parent, false);
+            pillar.transform.position = pillarSpawnPos;
+            pillar.transform.localScale = new Vector3(item.pillarWidth, distanceToGround / 2f, item.pillarWidth);
+            pillar.name = isGhost ? "[GHOST_PILLAR]" : "Pillar";
+
+            if (item.pillarMaterial != null && !isGhost)
+            {
+                pillar.GetComponent<MeshRenderer>().material = item.pillarMaterial;
+            }
+
+            if (isGhost)
+            {
+                Destroy(pillar.GetComponent<Collider>());
+                SetTransparent(pillar);
+            }
+            else
+            {
+                Destroy(pillar.GetComponent<Collider>());
+                var mc = pillar.AddComponent<MeshCollider>();
+                mc.convex = true;
+            }
+        }
+    }
+
+    private void SpawnPillarsAlongSpan(Vector3 start, Vector3 end, Transform parent, bool isGhost, BuildableItem item)
+    {
+        Vector3 direction = end - start;
+        float totalDistance = direction.magnitude;
+
+        int pillarCount = Mathf.FloorToInt(totalDistance / item.stepDistance);
+        if (pillarCount < 1) pillarCount = 1;
+
+        for (int p = 1; p <= pillarCount; p++)
+        {
+            float t = (float)p / (pillarCount + 1);
+            Vector3 pillarPos = Vector3.Lerp(start, end, t);
+            pillarPos.y += item.heightOffset;
+            SpawnPillar(pillarPos, parent, isGhost, item);
+        }
+    }
+
+    private void SetTransparent(GameObject obj)
+    {
+        var renderer = obj.GetComponent<MeshRenderer>();
+        if (renderer != null)
+        {
+            Color c = renderer.material.color;
+            c.a = 0.3f;
+            renderer.material.color = c;
+            renderer.material.SetFloat("_Mode", 2);
+            renderer.material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            renderer.material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            renderer.material.SetInt("_ZWrite", 0);
+            renderer.material.renderQueue = 3000;
+            renderer.enabled = true;
+        }
     }
 
     /// <summary>
-    /// Вспомогательный метод для определения нормали (наклона) земли под точкой
+    /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅ) пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     /// </summary>
     private Vector3 GetTerrainNormalAt(Vector3 originPos)
     {

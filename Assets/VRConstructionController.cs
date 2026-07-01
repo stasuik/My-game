@@ -6,19 +6,20 @@ public class VRConstructionController : MonoBehaviour
 {
     private enum ConstructionState { Idle, Building }
 
-    [Header("Ссылки на компоненты")]
+    [Header("пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ")]
     public VRRoadBuilder roadBuilder;
     public BuildManager buildManager;
     public Transform handTransform;
     public InputActionReference triggerAction;
 
-    [Header("Настройки луча")]
+    [Header("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ")]
     public float maxBuildDistance = 50f;
 
     private ConstructionState currentState = ConstructionState.Idle;
     private List<Vector3> buildPoints = new List<Vector3>();
     private bool wasTriggerPressedLastFrame = false;
-    private float initialBuildHeight = 0f; // Фиксация высоты для мостов
+    private float initialBuildHeight = 0f;
+    private Vector3 lastValidHitPoint;
 
     private VRMenuController menuController;
 
@@ -46,7 +47,6 @@ public class VRConstructionController : MonoBehaviour
 
         BuildableItem currentItem = buildManager.CurrentItem;
 
-        // 1. НАЖАТИЕ КУРКА
         if (isTriggerHeld && !wasTriggerPressedLastFrame)
         {
             if (currentItem.isSplineType)
@@ -57,7 +57,7 @@ public class VRConstructionController : MonoBehaviour
                 if (GetLaserHitPoint(out Vector3 hitPoint, out _))
                 {
                     buildPoints.Add(hitPoint);
-                    initialBuildHeight = hitPoint.y; // Запоминаем высоту старта
+                    initialBuildHeight = hitPoint.y;
                 }
             }
             else
@@ -66,59 +66,76 @@ public class VRConstructionController : MonoBehaviour
             }
         }
 
-        // 2. УДЕРЖАНИЕ КУРКА
         if (isTriggerHeld && wasTriggerPressedLastFrame && currentState == ConstructionState.Building)
         {
             if (currentItem.isSplineType && GetLaserHitPoint(out Vector3 currentHitPoint, out _))
             {
-                // Если это мост, принудительно держим высоту старта
                 if (!currentItem.snapToTerrain)
                 {
                     currentHitPoint.y = initialBuildHeight;
                 }
 
-                Vector3 lastFixedPoint = buildPoints[buildPoints.Count - 1];
-                float distanceXZ = Vector2.Distance(new Vector2(lastFixedPoint.x, lastFixedPoint.z),
-                                                    new Vector2(currentHitPoint.x, currentHitPoint.z));
+                lastValidHitPoint = currentHitPoint;
 
-                if (distanceXZ >= currentItem.stepDistance)
+                if (currentItem.singleSpan)
                 {
-                    Vector3 direction = (currentHitPoint - lastFixedPoint).normalized;
-                    Vector3 nextPoint = lastFixedPoint + (direction * currentItem.stepDistance);
-
-                    if (currentItem.snapToTerrain)
+                    if (buildPoints.Count > 0)
                     {
-                        nextPoint = GetTerrainHeightAt(nextPoint);
+                        List<Vector3> preview = new List<Vector3> { buildPoints[0], lastValidHitPoint };
+                        roadBuilder.DrawGhostRoad(preview, currentItem);
                     }
-                    else
+                }
+                else
+                {
+                    Vector3 lastFixedPoint = buildPoints[buildPoints.Count - 1];
+                    float distanceXZ = Vector2.Distance(new Vector2(lastFixedPoint.x, lastFixedPoint.z),
+                                                        new Vector2(currentHitPoint.x, currentHitPoint.z));
+
+                    if (distanceXZ >= currentItem.stepDistance)
                     {
-                        nextPoint.y = initialBuildHeight;
+                        Vector3 direction = (currentHitPoint - lastFixedPoint).normalized;
+                        Vector3 nextPoint = lastFixedPoint + (direction * currentItem.stepDistance);
+
+                        if (currentItem.snapToTerrain)
+                        {
+                            nextPoint = GetTerrainHeightAt(nextPoint);
+                        }
+                        else
+                        {
+                            nextPoint.y = initialBuildHeight;
+                        }
+
+                        buildPoints.Add(nextPoint);
                     }
 
-                    buildPoints.Add(nextPoint);
-                    lastFixedPoint = nextPoint;
-                }
+                    List<Vector3> previewPoints = new List<Vector3>(buildPoints);
+                    if (Vector3.Distance(lastFixedPoint, currentHitPoint) > 0.2f)
+                    {
+                        previewPoints.Add(currentHitPoint);
+                    }
+                    else if (previewPoints.Count == 1)
+                    {
+                        previewPoints.Add(currentHitPoint + new Vector3(0.01f, 0, 0));
+                    }
 
-                List<Vector3> previewPoints = new List<Vector3>(buildPoints);
-                if (Vector3.Distance(lastFixedPoint, currentHitPoint) > 0.2f)
-                {
-                    previewPoints.Add(currentHitPoint);
+                    roadBuilder.DrawGhostRoad(previewPoints, currentItem);
                 }
-                else if (previewPoints.Count == 1)
-                {
-                    previewPoints.Add(currentHitPoint + new Vector3(0.01f, 0, 0));
-                }
-
-                roadBuilder.DrawGhostRoad(previewPoints, currentItem);
             }
         }
 
-        // 3. ОТПУСКАНИЕ КУРКА
         if (!isTriggerHeld && wasTriggerPressedLastFrame)
         {
             if (currentState == ConstructionState.Building)
             {
                 currentState = ConstructionState.Idle;
+
+                if (currentItem.singleSpan && buildPoints.Count > 0)
+                {
+                    Vector3 endPoint = lastValidHitPoint;
+                    if (!currentItem.snapToTerrain) endPoint.y = initialBuildHeight;
+                    buildPoints.Add(endPoint);
+                }
+
                 roadBuilder.BuildFinalRoad(buildPoints, currentItem);
                 buildPoints.Clear();
             }

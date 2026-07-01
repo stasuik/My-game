@@ -13,9 +13,15 @@ MonoBehaviour:
   m_Name: Item_Bridge
   m_EditorClassIdentifier: 
   itemName: "\u041C\u043E\u0441\u0442"
-  finalPrefab: {fileID: 4901036142333088739, guid: 64bf00f68686f1945b5f1dbfaec3f479, type: 3}
-  ghostPrefab: {fileID: 4901036142333088739, guid: bb1f9eb93f1db034a944ba0f4b50ea8b, type: 3}
+  finalPrefab: {fileID: 4901036142333088739, guid: bbec0cb2da2242548a0ea5edac0049c3, type: 3}
+  ghostPrefab: {fileID: 4901036142333088739, guid: bbec0cb2da2242548a0ea5edac0049c3, type: 3}
+  rotationOffset: {x: 0, y: 90, z: 0}
   isSplineType: 1
   snapToTerrain: 0
-  stepDistance: 1.4
+  stepDistance: 2
   heightOffset: 0.02
+  generatePillars: 1
+  pillarWidth: 0.3
+  minPillarHeight: 1.5
+  pillarMaterial: {fileID: 0}
+  singleSpan: 1
