@@ -17,10 +17,10 @@ MonoBehaviour:
   ghostPrefab: {fileID: 4901036142333088739, guid: bb1f9eb93f1db034a944ba0f4b50ea8b, type: 3}
   isSplineType: 1
   snapToTerrain: 1
-  stepDistance: 1.4
-  heightOffset: 0.02
+  stepDistance: 2.8
+  heightOffset: 0.04
   generatePillars: 0
-  pillarWidth: 0.3
+  pillarWidth: 0.6
   minPillarHeight: 1.5
   pillarMaterial: {fileID: 0}
   singleSpan: 0
