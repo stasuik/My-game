@@ -7,6 +7,9 @@ public class VRRoadBuilder : MonoBehaviour
     [Tooltip("���� ��������� (Terrain), �� �������� ����� ���������� �����")]
     public LayerMask terrainLayer;
 
+    [Tooltip("������� ��� ��������� Terrain.SampleHeight (���� null — ������ �� �������� � ������)")]
+    public Terrain terrain;
+
     [Tooltip("�������������� ������� ������� � ��������� ����������� (�� ����������� ��� ������)")]
     public Vector3 modelRotationOffset = Vector3.zero;
 
@@ -49,7 +52,10 @@ public class VRRoadBuilder : MonoBehaviour
             if (actualDistance < 0.1f) continue;
 
             Vector3 spawnPos = Vector3.Lerp(posA, posB, 0.5f);
-            spawnPos.y += item.heightOffset;
+            if (item.snapToTerrain)
+                spawnPos.y = SampleTerrainHeight(spawnPos) + item.heightOffset;
+            else
+                spawnPos.y += item.heightOffset;
 
             Vector3 groundNormal = item.snapToTerrain ? GetTerrainNormalAt(spawnPos) : Vector3.up;
 
@@ -87,7 +93,10 @@ public class VRRoadBuilder : MonoBehaviour
         if (totalDistance < 0.1f) return;
 
         Vector3 midPoint = Vector3.Lerp(start, end, 0.5f);
-        midPoint.y += item.heightOffset;
+        if (item.snapToTerrain)
+            midPoint.y = SampleTerrainHeight(midPoint) + item.heightOffset;
+        else
+            midPoint.y += item.heightOffset;
 
         Vector3 groundNormal = item.snapToTerrain ? GetTerrainNormalAt(midPoint) : Vector3.up;
         Quaternion spanRot = Quaternion.LookRotation(direction.normalized, groundNormal);
@@ -133,7 +142,10 @@ public class VRRoadBuilder : MonoBehaviour
             if (actualDistance < 0.1f) continue;
 
             Vector3 spawnPos = Vector3.Lerp(posA, posB, 0.5f);
-            spawnPos.y += item.heightOffset;
+            if (item.snapToTerrain)
+                spawnPos.y = SampleTerrainHeight(spawnPos) + item.heightOffset;
+            else
+                spawnPos.y += item.heightOffset;
 
             Vector3 groundNormal = item.snapToTerrain ? GetTerrainNormalAt(spawnPos) : Vector3.up;
 
@@ -172,7 +184,10 @@ public class VRRoadBuilder : MonoBehaviour
         if (totalDistance < 0.1f) return;
 
         Vector3 midPoint = Vector3.Lerp(start, end, 0.5f);
-        midPoint.y += item.heightOffset;
+        if (item.snapToTerrain)
+            midPoint.y = SampleTerrainHeight(midPoint) + item.heightOffset;
+        else
+            midPoint.y += item.heightOffset;
 
         Vector3 groundNormal = item.snapToTerrain ? GetTerrainNormalAt(midPoint) : Vector3.up;
         Quaternion spanRot = Quaternion.LookRotation(direction.normalized, groundNormal);
@@ -320,6 +335,21 @@ public class VRRoadBuilder : MonoBehaviour
             renderer.material.renderQueue = 3000;
             renderer.enabled = true;
         }
+    }
+
+    private float SampleTerrainHeight(Vector3 worldPos)
+    {
+        if (terrain != null)
+        {
+            float h = terrain.SampleHeight(worldPos);
+            return terrain.transform.position.y + h;
+        }
+        Vector3 rayStart = new Vector3(worldPos.x, worldPos.y + 200f, worldPos.z);
+        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 400f, terrainLayer))
+        {
+            return hit.point.y;
+        }
+        return worldPos.y;
     }
 
     /// <summary>

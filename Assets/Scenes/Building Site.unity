@@ -226,6 +226,7 @@ MonoBehaviour:
   terrainLayer:
     serializedVersion: 2
     m_Bits: 1
+  terrain: {fileID: 810594352}
   modelRotationOffset: {x: 0, y: 90, z: 0}
   bridgePillarPrefab: {fileID: 0}
 --- !u!114 &98922586
