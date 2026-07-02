@@ -20,6 +20,10 @@ public class BuildableItem : ScriptableObject
     [Header("Rotation")]
     public Vector3 rotationOffset = Vector3.zero;
 
+    [Header("Road Proximity")]
+    public bool requireRoadProximity = false;
+    public float maxRoadDistance = 5f;
+
     [Header("Bridge Settings")]
     public bool generatePillars = true;
     public float pillarWidth = 0.3f;

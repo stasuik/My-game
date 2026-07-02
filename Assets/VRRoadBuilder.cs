@@ -141,6 +141,7 @@ public class VRRoadBuilder : MonoBehaviour
             spawnRot *= Quaternion.Euler(GetRotationOffset(item));
 
             GameObject permanentSegment = Instantiate(item.finalPrefab, spawnPos, spawnRot, finalContainer.transform);
+            permanentSegment.AddComponent<RoadSegment>();
 
             if (i == points.Count - 1)
             {
@@ -178,6 +179,7 @@ public class VRRoadBuilder : MonoBehaviour
         spanRot *= Quaternion.Euler(GetRotationOffset(item));
 
         GameObject bridgeSpan = Instantiate(item.finalPrefab, midPoint, spanRot, container.transform);
+        bridgeSpan.AddComponent<RoadSegment>();
 
         float scaleMultiplier = totalDistance / item.stepDistance;
         Vector3 currentScale = bridgeSpan.transform.localScale;
@@ -197,12 +199,34 @@ public class VRRoadBuilder : MonoBehaviour
         }
     }
 
+    public void SetGhostColor(Color color)
+    {
+        if (ghostContainer == null) return;
+        var renderers = ghostContainer.GetComponentsInChildren<MeshRenderer>();
+        foreach (var r in renderers)
+        {
+            r.material.color = color;
+        }
+    }
+
     /// <summary>
     /// ������� ���������� �������� �� �����
     /// </summary>
     public void ClearGhostRoad()
     {
         if (ghostContainer != null) Destroy(ghostContainer);
+    }
+
+    public float DistanceToNearestRoad(Vector3 position)
+    {
+        RoadSegment[] roads = FindObjectsOfType<RoadSegment>();
+        float minDist = float.MaxValue;
+        for (int i = 0; i < roads.Length; i++)
+        {
+            float dist = Vector3.Distance(position, roads[i].transform.position);
+            if (dist < minDist) minDist = dist;
+        }
+        return minDist;
     }
 
     /// <summary>

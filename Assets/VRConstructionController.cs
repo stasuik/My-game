@@ -20,6 +20,7 @@ public class VRConstructionController : MonoBehaviour
     private bool wasTriggerPressedLastFrame = false;
     private float initialBuildHeight = 0f;
     private Vector3 lastValidHitPoint;
+    private GameObject singleGhost;
 
     private VRMenuController menuController;
 
@@ -41,6 +42,7 @@ public class VRConstructionController : MonoBehaviour
         if (menuController != null && menuController.menuCanvas != null && menuController.menuCanvas.activeSelf)
         {
             if (currentState == ConstructionState.Building) CancelConstruction();
+            ClearSingleGhost();
             wasTriggerPressedLastFrame = isTriggerHeld;
             return;
         }
@@ -64,6 +66,11 @@ public class VRConstructionController : MonoBehaviour
             {
                 HandleSinglePlacement(currentItem);
             }
+        }
+
+        if (!currentItem.isSplineType)
+        {
+            UpdateSingleGhost(currentItem);
         }
 
         if (isTriggerHeld && wasTriggerPressedLastFrame && currentState == ConstructionState.Building)
@@ -120,6 +127,12 @@ public class VRConstructionController : MonoBehaviour
 
                     roadBuilder.DrawGhostRoad(previewPoints, currentItem);
                 }
+            }
+
+            if (currentItem.requireRoadProximity && !currentItem.isSplineType)
+            {
+                bool tooFar = roadBuilder.DistanceToNearestRoad(lastValidHitPoint) > currentItem.maxRoadDistance;
+                roadBuilder.SetGhostColor(tooFar ? Color.red : Color.white);
             }
         }
 
@@ -179,6 +192,12 @@ public class VRConstructionController : MonoBehaviour
     {
         if (GetLaserHitPoint(out Vector3 spawnPoint, out Vector3 groundNormal))
         {
+            if (item.requireRoadProximity && roadBuilder.DistanceToNearestRoad(spawnPoint) > item.maxRoadDistance)
+            {
+                Debug.LogWarning("Cannot place " + item.itemName + ": too far from nearest road");
+                return;
+            }
+
             Quaternion spawnRotation = Quaternion.FromToRotation(Vector3.up, groundNormal);
             Vector3 lookDirection = handTransform.position - spawnPoint;
             lookDirection.y = 0;
@@ -193,9 +212,56 @@ public class VRConstructionController : MonoBehaviour
         }
     }
 
+    private void UpdateSingleGhost(BuildableItem item)
+    {
+        if (!GetLaserHitPoint(out Vector3 hitPoint, out Vector3 groundNormal))
+        {
+            ClearSingleGhost();
+            return;
+        }
+
+        if (singleGhost == null)
+        {
+            GameObject prefab = item.ghostPrefab != null ? item.ghostPrefab : item.finalPrefab;
+            if (prefab == null) return;
+            singleGhost = Instantiate(prefab);
+            foreach (var col in singleGhost.GetComponentsInChildren<Collider>())
+                Destroy(col);
+        }
+
+        Quaternion rotation = Quaternion.FromToRotation(Vector3.up, groundNormal);
+        Vector3 lookDir = handTransform.position - hitPoint;
+        lookDir.y = 0;
+        if (lookDir != Vector3.zero)
+        {
+            Quaternion facePlayer = Quaternion.LookRotation(lookDir);
+            rotation = facePlayer * Quaternion.FromToRotation(Vector3.up, groundNormal);
+        }
+
+        singleGhost.transform.position = hitPoint;
+        singleGhost.transform.rotation = rotation;
+
+        if (item.requireRoadProximity)
+        {
+            bool tooFar = roadBuilder.DistanceToNearestRoad(hitPoint) > item.maxRoadDistance;
+            foreach (var r in singleGhost.GetComponentsInChildren<MeshRenderer>())
+                r.material.color = tooFar ? Color.red : Color.white;
+        }
+    }
+
+    private void ClearSingleGhost()
+    {
+        if (singleGhost != null)
+        {
+            Destroy(singleGhost);
+            singleGhost = null;
+        }
+    }
+
     private void OnDisable()
     {
         CancelConstruction();
+        ClearSingleGhost();
         wasTriggerPressedLastFrame = false;
     }
 }
