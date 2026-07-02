@@ -12,6 +12,10 @@ public class VRConstructionController : MonoBehaviour
     public Transform handTransform;
     public InputActionReference triggerAction;
 
+    [Header("L1/R1 ��������")]
+    public InputActionAsset inputActions;
+    public float rotationStep = 15f;
+
     [Header("��������� ����")]
     public float maxBuildDistance = 50f;
 
@@ -21,12 +25,42 @@ public class VRConstructionController : MonoBehaviour
     private float initialBuildHeight = 0f;
     private Vector3 lastValidHitPoint;
     private GameObject singleGhost;
+    private float singleRotationOffset = 0f;
+    private bool wasRotateLeftPressed = false;
+    private bool wasRotateRightPressed = false;
+    private InputAction rotateLeftAction;
+    private InputAction rotateRightAction;
 
     private VRMenuController menuController;
 
     private void Awake()
     {
         menuController = GetComponent<VRMenuController>();
+
+        if (inputActions == null)
+        {
+            if (triggerAction != null && triggerAction.action != null)
+                inputActions = triggerAction.action.actionMap.asset;
+        }
+
+        if (inputActions == null)
+        {
+            InputActionAsset[] assets = Resources.FindObjectsOfTypeAll<InputActionAsset>();
+            if (assets.Length > 0)
+                inputActions = assets[0];
+        }
+
+        if (inputActions != null)
+        {
+            var map = inputActions.FindActionMap("XRI Construction");
+            if (map != null)
+            {
+                rotateLeftAction = map.FindAction("L1");
+                rotateRightAction = map.FindAction("R1");
+                rotateLeftAction?.Enable();
+                rotateRightAction?.Enable();
+            }
+        }
     }
 
     private void Update()
@@ -39,10 +73,35 @@ public class VRConstructionController : MonoBehaviour
 
         bool isTriggerHeld = triggerAction.action.IsPressed() || triggerAction.action.ReadValue<float>() > 0.5f;
 
+        if (!buildManager.CurrentItem.isSplineType)
+        {
+            bool leftDown = rotateLeftAction != null && rotateLeftAction.IsPressed();
+            bool rightDown = rotateRightAction != null && rotateRightAction.IsPressed();
+
+            if (leftDown)
+                Debug.Log($"[VRConstruction] L1 pressed, wasPressed={wasRotateLeftPressed}, offset={singleRotationOffset}");
+            if (rightDown)
+                Debug.Log($"[VRConstruction] R1 pressed, wasPressed={wasRotateRightPressed}, offset={singleRotationOffset}");
+
+            if (leftDown && !wasRotateLeftPressed)
+                singleRotationOffset -= rotationStep;
+            if (rightDown && !wasRotateRightPressed)
+                singleRotationOffset += rotationStep;
+
+            wasRotateLeftPressed = leftDown;
+            wasRotateRightPressed = rightDown;
+        }
+        else
+        {
+            wasRotateLeftPressed = false;
+            wasRotateRightPressed = false;
+        }
+
         if (menuController != null && menuController.menuCanvas != null && menuController.menuCanvas.activeSelf)
         {
             if (currentState == ConstructionState.Building) CancelConstruction();
             ClearSingleGhost();
+            singleRotationOffset = 0f;
             wasTriggerPressedLastFrame = isTriggerHeld;
             return;
         }
@@ -164,6 +223,11 @@ public class VRConstructionController : MonoBehaviour
         if (roadBuilder != null) roadBuilder.ClearGhostRoad();
     }
 
+    public void ResetSingleRotation()
+    {
+        singleRotationOffset = 0f;
+    }
+
     private bool GetLaserHitPoint(out Vector3 hitPoint, out Vector3 hitNormal)
     {
         Ray ray = new Ray(handTransform.position, handTransform.forward);
@@ -207,7 +271,10 @@ public class VRConstructionController : MonoBehaviour
                 spawnRotation = facePlayerRot * Quaternion.FromToRotation(Vector3.up, groundNormal);
             }
 
+            spawnRotation *= Quaternion.Euler(0, singleRotationOffset, 0);
+
             Instantiate(item.finalPrefab, spawnPoint, spawnRotation);
+            singleRotationOffset = 0f;
             roadBuilder.ClearGhostRoad();
         }
     }
@@ -239,6 +306,7 @@ public class VRConstructionController : MonoBehaviour
         }
 
         singleGhost.transform.position = hitPoint;
+        rotation *= Quaternion.Euler(0, singleRotationOffset, 0);
         singleGhost.transform.rotation = rotation;
 
         if (item.requireRoadProximity)
@@ -260,6 +328,8 @@ public class VRConstructionController : MonoBehaviour
 
     private void OnDisable()
     {
+        rotateLeftAction?.Disable();
+        rotateRightAction?.Disable();
         CancelConstruction();
         ClearSingleGhost();
         wasTriggerPressedLastFrame = false;

@@ -12,17 +12,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1d5ec8b032e5a914bbdf800ac38f341a, type: 3}
   m_Name: flashlight
   m_EditorClassIdentifier: 
-  itemName: 
-  finalPrefab: {fileID: 0}
-  ghostPrefab: {fileID: 0}
+  itemName: "\u0424\u043E\u043D\u0430\u0440\u044C"
+  finalPrefab: {fileID: 4469522894107927448, guid: 7902dcc10d992ec45ad25f2e804b2682, type: 3}
+  ghostPrefab: {fileID: 4469522894107927448, guid: 7902dcc10d992ec45ad25f2e804b2682, type: 3}
   isSplineType: 0
   snapToTerrain: 1
   stepDistance: 2.8
   heightOffset: 0.04
   rotationOffset: {x: 0, y: 0, z: 0}
-  requireRoadProximity: 0
+  requireRoadProximity: 1
   maxRoadDistance: 5
-  generatePillars: 1
+  generatePillars: 0
   pillarWidth: 0.6
   minPillarHeight: 1.5
   pillarMaterial: {fileID: 0}
