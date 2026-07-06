@@ -4,10 +4,11 @@ using UnityEngine;
 public class BuildableItem : ScriptableObject
 {
     public string itemName;
+    public Sprite previewIcon;
 
-    [Header("�������")]
-    public GameObject finalPrefab;  // ���������� ������
-    public GameObject ghostPrefab;  // ���������� ������� (���� ���, ��� ������� finalPrefab)
+    [Header("Prefabs")]
+    public GameObject finalPrefab;
+    public GameObject ghostPrefab;
 
     [Header("������ ����������")]
     public bool isSplineType = false;       // true � ������� (������, ����), false � �������� � ���� ����� (���������)

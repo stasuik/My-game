@@ -13,12 +13,16 @@ MonoBehaviour:
   m_Name: Item_Road
   m_EditorClassIdentifier: 
   itemName: "\u0414\u043E\u0440\u043E\u0433\u0430"
+  previewIcon: {fileID: 0}
   finalPrefab: {fileID: 4901036142333088739, guid: 64bf00f68686f1945b5f1dbfaec3f479, type: 3}
   ghostPrefab: {fileID: 4901036142333088739, guid: bb1f9eb93f1db034a944ba0f4b50ea8b, type: 3}
   isSplineType: 1
-  snapToTerrain: 1
+  snapToTerrain: 0
   stepDistance: 2.8
-  heightOffset: 0.04
+  heightOffset: 0.05
+  rotationOffset: {x: 0, y: 0, z: 0}
+  requireRoadProximity: 0
+  maxRoadDistance: 5
   generatePillars: 0
   pillarWidth: 0.6
   minPillarHeight: 1.5

@@ -78,11 +78,6 @@ public class VRConstructionController : MonoBehaviour
             bool leftDown = rotateLeftAction != null && rotateLeftAction.IsPressed();
             bool rightDown = rotateRightAction != null && rotateRightAction.IsPressed();
 
-            if (leftDown)
-                Debug.Log($"[VRConstruction] L1 pressed, wasPressed={wasRotateLeftPressed}, offset={singleRotationOffset}");
-            if (rightDown)
-                Debug.Log($"[VRConstruction] R1 pressed, wasPressed={wasRotateRightPressed}, offset={singleRotationOffset}");
-
             if (leftDown && !wasRotateLeftPressed)
                 singleRotationOffset -= rotationStep;
             if (rightDown && !wasRotateRightPressed)
@@ -159,12 +154,16 @@ public class VRConstructionController : MonoBehaviour
 
                     if (distanceXZ >= currentItem.stepDistance)
                     {
-                        Vector3 direction = (currentHitPoint - lastFixedPoint).normalized;
-                        Vector3 nextPoint = lastFixedPoint + (direction * currentItem.stepDistance);
+                        Vector3 dirXZ = (currentHitPoint - lastFixedPoint);
+                        dirXZ.y = 0;
+                        if (dirXZ.sqrMagnitude < 0.0001f) dirXZ = Vector3.forward;
+                        dirXZ.Normalize();
+
+                        Vector3 nextPoint = lastFixedPoint + (dirXZ * currentItem.stepDistance);
 
                         if (currentItem.snapToTerrain)
                         {
-                            nextPoint = GetTerrainHeightAt(nextPoint);
+                            nextPoint.y = roadBuilder.SampleTerrainHeight(nextPoint);
                         }
                         else
                         {
@@ -240,16 +239,6 @@ public class VRConstructionController : MonoBehaviour
         hitPoint = Vector3.zero;
         hitNormal = Vector3.up;
         return false;
-    }
-
-    private Vector3 GetTerrainHeightAt(Vector3 originPos)
-    {
-        Vector3 rayStart = new Vector3(originPos.x, originPos.y + 50f, originPos.z);
-        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 100f, roadBuilder.terrainLayer))
-        {
-            return hit.point;
-        }
-        return originPos;
     }
 
     private void HandleSinglePlacement(BuildableItem item)

@@ -13,8 +13,9 @@ MonoBehaviour:
   m_Name: flashlight
   m_EditorClassIdentifier: 
   itemName: "\u0424\u043E\u043D\u0430\u0440\u044C"
+  previewIcon: {fileID: 0}
   finalPrefab: {fileID: 4469522894107927448, guid: 7902dcc10d992ec45ad25f2e804b2682, type: 3}
-  ghostPrefab: {fileID: 4469522894107927448, guid: 7902dcc10d992ec45ad25f2e804b2682, type: 3}
+  ghostPrefab: {fileID: 757535586183173986, guid: dfaad465ad037bf448cc887ade3b8136, type: 3}
   isSplineType: 0
   snapToTerrain: 1
   stepDistance: 2.8
