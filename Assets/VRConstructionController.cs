@@ -131,7 +131,7 @@ public class VRConstructionController : MonoBehaviour
         {
             if (currentItem.isSplineType && GetLaserHitPoint(out Vector3 currentHitPoint, out _))
             {
-                if (!currentItem.snapToTerrain)
+                if (currentItem.singleSpan)
                 {
                     currentHitPoint.y = initialBuildHeight;
                 }
@@ -161,7 +161,7 @@ public class VRConstructionController : MonoBehaviour
 
                         Vector3 nextPoint = lastFixedPoint + (dirXZ * currentItem.stepDistance);
 
-                        if (currentItem.snapToTerrain)
+                        if (!currentItem.singleSpan)
                         {
                             nextPoint.y = roadBuilder.SampleTerrainHeight(nextPoint);
                         }
