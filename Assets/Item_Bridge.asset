@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d5ec8b032e5a914bbdf800ac38f341a, type: 3}
+  m_Name: Item_Bridge
+  m_EditorClassIdentifier: 
+  itemName: "\u041C\u043E\u0441\u0442"
+  finalPrefab: {fileID: 5324440308575896546, guid: c2e5bfc42ad03754faebebb6b32322a6, type: 3}
+  ghostPrefab: {fileID: 1040150003208013355, guid: bbec0cb2da2242548a0ea5edac0049c3, type: 3}
+  isSplineType: 1
+  snapToTerrain: 0
+  stepDistance: 2
+  heightOffset: 0.02
+  rotationOffset: {x: 0, y: 180, z: 0}
+  generatePillars: 0
+  pillarWidth: 0.3
+  minPillarHeight: 1.5
+  pillarMaterial: {fileID: 0}
+  singleSpan: 1
