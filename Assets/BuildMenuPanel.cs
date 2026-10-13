@@ -403,10 +403,23 @@ public class BuildMenuPanel : MonoBehaviour
 
         int index;
         BuildableItem item = FindItem(c.label, c.keywords, out index);
+        bool isStub = false;
+        if (item == null && buildManager != null && buildManager.catalog != null && StubBuildItems.IsStub(c.label))
+        {
+            // модели ещё нет: подставляем простую форму из кубов, в каталоге она остаётся до конца игры
+            item = StubBuildItems.Create(c.label);
+            if (item != null)
+            {
+                buildManager.catalog.Add(item);
+                index = buildManager.catalog.Count - 1;
+                isStub = true;
+            }
+        }
+
         if (item != null && buildManager != null)
         {
             buildManager.SetBuildMode(index);
-            status.text = "В игре выбрано: " + item.itemName + ". Закройте панель и стройте.";
+            status.text = (isStub ? "Заглушка в игре: " : "В игре выбрано: ") + item.itemName + ". Закройте панель и стройте.";
         }
         else
         {
