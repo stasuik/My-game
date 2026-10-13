@@ -22,6 +22,12 @@ public class VRMenuController : MonoBehaviour
     [Header("Preview Render")]
     public int previewResolution = 128;
 
+    [Header("Designed Panel")]
+    [Tooltip("Меню по макету Сони (вкладки). Выключить, чтобы вернуть старую сетку карточек.")]
+    public bool useDesignedPanel = true;
+
+    private BuildMenuPanel designedPanel;
+
     private List<GameObject> menuButtons = new List<GameObject>();
     private Transform scrollContent;
     private Camera previewCamera;
@@ -106,7 +112,11 @@ public class VRMenuController : MonoBehaviour
 
         if (!menuCanvas.activeSelf)
         {
-            if (!menuBuilt)
+            if (useDesignedPanel)
+            {
+                EnsureDesignedPanel();
+            }
+            else if (!menuBuilt)
             {
                 if (buttonsContainer != null && buttonsContainer.childCount > 0)
                     menuBuilt = true; // запечённые кнопки уже в сцене
@@ -120,6 +130,25 @@ public class VRMenuController : MonoBehaviour
         {
             menuCanvas.SetActive(false);
         }
+    }
+
+    // Меню по макету Сони (BuildMenuPanel): прячет старую сетку карточек и собирает панель с вкладками
+    private void EnsureDesignedPanel()
+    {
+        if (designedPanel != null) return;
+
+        foreach (Transform child in menuCanvas.transform)
+            child.gameObject.SetActive(false);
+
+        RectTransform canvasRT = menuCanvas.GetComponent<RectTransform>();
+        if (canvasRT != null)
+            canvasRT.sizeDelta = new Vector2(BuildMenuPanel.W, BuildMenuPanel.H);
+
+        GameObject go = new GameObject("BuildMenuPanel", typeof(RectTransform));
+        go.layer = menuCanvas.layer;
+        go.transform.SetParent(menuCanvas.transform, false);
+        designedPanel = go.AddComponent<BuildMenuPanel>();
+        designedPanel.Init(buildManager, this);
     }
 
     public void CloseMenu()

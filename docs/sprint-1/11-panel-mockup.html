@@ -1,0 +1,355 @@
+<title>Панель строительства VR</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: слева «окно шлема» 80°×55° с панелью в реальном размере и расстоянии, справа расчёты. Панель: макет Сони (400 px) и вариант под VR (вкладки, крупный текст). */
+:root {
+  --bg: #f3f5f7;
+  --surface: #ffffff;
+  --fg: #16202a;
+  --muted: #5b6875;
+  --line: #d5dce3;
+  --accent: #0d6e8c;
+  --accent-soft: #dcecf2;
+  --ok: #1f7a4d;
+  --warn: #a8610a;
+  --bad: #b3261e;
+  --scene-top: #bcd3df;
+  --scene-bottom: #7e8c78;
+  --zone: #ffffff;
+  /* Дизайн Сони: цвета с макета, одинаковы в обеих темах страницы */
+  --d-bg: #fff8ec; --d-ink: #3b2b1a; --d-mute: #8a7558; --d-line: #f3e6cf;
+  --d-tile: #ffe8cc; --d-tile-sel: #ffdcb0; --d-accent: #ff9f1c; --d-chip: #fff0dc;
+  --font-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11171c; --surface: #19222a; --fg: #e6ecf1; --muted: #93a1ad; --line: #2b3640;
+    --accent: #5ec0de; --accent-soft: #1d3641; --ok: #5ccf94; --warn: #e5a14b; --bad: #f08a82;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11171c; --surface: #19222a; --fg: #e6ecf1; --muted: #93a1ad; --line: #2b3640;
+  --accent: #5ec0de; --accent-soft: #1d3641; --ok: #5ccf94; --warn: #e5a14b; --bad: #f08a82;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); line-height: 1.5; padding-inline: 16px; padding-block: 24px 40px; }
+.wrap { max-width: 1240px; margin-inline: auto; display: grid; gap: 20px; }
+h1 { font-size: 1.5rem; font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+.lede { margin: 6px 0 0; color: var(--muted); max-width: 72ch; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px; align-items: start; }
+@media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.variants { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.variants button { font: 500 .8125rem var(--font-ui); background: transparent; color: var(--fg); border: 0; padding: 8px 14px; cursor: pointer; }
+.variants button + button { border-left: 1px solid var(--line); }
+.variants button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.variants button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+:root[data-theme="dark"] .variants button[aria-pressed="true"] { color: #0b1317; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .variants button[aria-pressed="true"] { color: #0b1317; } }
+
+/* Окно шлема */
+.view { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: linear-gradient(var(--scene-top) 0 50%, var(--scene-bottom) 50% 100%); }
+.zone { position: absolute; border: 1.5px dashed var(--zone); opacity: .8; pointer-events: none; border-radius: 4px; }
+.zone span, .eye span { position: absolute; font: 500 .6875rem/1 var(--font-num); color: #fff; background: rgba(0,0,0,.55); padding: 3px 6px; border-radius: 3px; white-space: nowrap; }
+.zone span { left: 6px; top: 6px; }
+.eye { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dotted rgba(255,255,255,.55); pointer-events: none; }
+.eye span { right: 6px; top: 4px; }
+.mount { position: absolute; transform-origin: 0 0; box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 8px 30px rgba(0,0,0,.25); }
+.clip { position: absolute; left: 50%; transform: translateX(-50%); font: 500 .75rem var(--font-ui); color: #fff; background: var(--bad); padding: 5px 10px; border-radius: 4px; white-space: nowrap; pointer-events: none; }
+.clip[hidden] { display: none; }
+.legend { margin-top: 10px; color: var(--muted); font-size: .8125rem; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+
+.side { display: grid; gap: 16px; min-width: 0; }
+.ctrl { display: grid; gap: 4px; margin-bottom: 12px; }
+.ctrl:last-child { margin-bottom: 0; }
+.ctrl label { display: flex; justify-content: space-between; font-size: .8125rem; }
+.ctrl output { font-family: var(--font-num); }
+.ctrl input[type=range] { width: 100%; accent-color: var(--accent); }
+table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
+th, td { text-align: left; padding: 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child th, tr:last-child td { border-bottom: 0; }
+th { font-weight: 400; color: var(--muted); padding-right: 10px; }
+td { font-family: var(--font-num); font-variant-numeric: tabular-nums; text-align: right; }
+.checks { display: grid; gap: 8px; margin-top: 12px; }
+.chk-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 6px; font-size: .8125rem; background: var(--accent-soft); }
+.chk-row .pill { flex: none; min-width: 78px; text-align: center; font-weight: 600; font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; padding: 3px 7px; border-radius: 999px; border: 1px solid currentColor; }
+.chk-row.ok .pill { color: var(--ok); } .chk-row.warn .pill { color: var(--warn); } .chk-row.bad .pill { color: var(--bad); }
+.notes { margin: 0; padding-left: 1.1em; color: var(--muted); font-size: .8125rem; display: grid; gap: 5px; }
+.notes b { color: var(--fg); font-weight: 500; }
+
+/* ===== Дизайн панели (макет Сони). Размеры в px макета; на сцене масштабируются transform. ===== */
+.ds { width: 400px; background: var(--d-bg); color: var(--d-ink); font: 13px/1.35 var(--font-ui); user-select: none; }
+.ds button { font-family: inherit; color: inherit; cursor: pointer; }
+.ds .hd { padding: 26px 24px 16px; border-bottom: 1px solid var(--d-line); position: relative; }
+.ds h3 { margin: 0; font-size: 18px; font-weight: 600; }
+.ds .crumb { font-size: 12px; color: var(--d-mute); margin-top: 4px; }
+.ds .x { position: absolute; right: 24px; top: 26px; width: 32px; height: 32px; border-radius: 50%; background: var(--d-tile); border: 0; font-size: 16px; }
+.ds .sec { padding: 0 24px; margin-top: 28px; }
+.ds .sec:last-child { padding-bottom: 24px; }
+.ds h4 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--d-mute); margin: 0 0 14px; font-weight: 600; }
+.ds .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+.ds .tiles.two { grid-template-columns: repeat(2, 1fr); }
+.ds .tile { appearance: none; border: 2px solid transparent; background: var(--d-tile); border-radius: 14px; height: 82px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 11px; color: var(--d-mute); }
+.ds .tile svg { width: 34px; height: 34px; padding: 7px; border-radius: 50%; background: #fff3e2; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ds .tile.sel { background: var(--d-tile-sel); border-color: var(--d-accent); color: var(--d-ink); font-weight: 600; }
+.ds .tile.sel svg { color: var(--d-accent); }
+.ds .row { display: flex; justify-content: space-between; align-items: center; min-height: 44px; font-size: 14px; }
+.ds .row.col { display: block; padding-top: 6px; }
+.ds .lab small { display: block; font-size: 10px; color: #a8946f; }
+.ds .step { display: inline-flex; align-items: center; background: var(--d-chip); border-radius: 10px; }
+.ds .step button { appearance: none; width: 24px; height: 28px; border: 0; background: none; color: #b79c78; font-size: 14px; }
+.ds .step output { min-width: 56px; text-align: center; font-size: 12px; font-weight: 600; }
+.ds .chip { background: var(--d-chip); border-radius: 10px; padding: 5px 12px; font-size: 12px; font-weight: 600; }
+.ds .chip.off { color: #b79c78; font-weight: 400; }
+.ds .seg { display: flex; gap: 8px; margin: 6px 0 10px; }
+.ds .seg button { appearance: none; flex: 1; height: 38px; border-radius: 19px; border: 2px solid transparent; background: #ffefd8; color: var(--d-mute); font-size: 13px; }
+.ds .seg button.sel { border-color: var(--d-accent); background: var(--d-tile-sel); color: var(--d-ink); font-weight: 600; }
+.ds .seg.fill button.sel { background: var(--d-accent); color: #fff; }
+.ds .chk { appearance: none; display: flex; align-items: center; gap: 12px; height: 46px; width: 100%; border: 0; background: none; font-size: 14px; text-align: left; }
+.ds .chk i { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--d-tile-sel); display: grid; place-items: center; font-style: normal; font-size: 11px; color: var(--d-accent); }
+.ds .chk.on i { border-color: var(--d-accent); background: var(--d-tile); }
+.ds .chk.on i::after { content: "✓"; }
+.ds button:focus-visible { outline: 2px solid var(--d-accent); outline-offset: 2px; }
+.ds .tabs, .ds .pane { display: none; }
+
+/* Вариант под VR: 600×~520 px, шрифт от 18 px, вкладки вместо длинной колонки */
+.ds.vr { width: 600px; font-size: 20px; }
+.ds.vr .hd { padding: 14px 20px 12px; }
+.ds.vr h3 { font-size: 26px; }
+.ds.vr .crumb { font-size: 17px; margin-top: 2px; }
+.ds.vr .x { width: 44px; height: 44px; right: 20px; top: 12px; font-size: 20px; }
+.ds.vr .sec { display: none; }
+.ds.vr .tabs { display: flex; border-bottom: 1px solid var(--d-line); }
+.ds.vr .tabs button { appearance: none; flex: 1; height: 52px; border: 0; background: none; font-size: 19px; color: var(--d-mute); border-bottom: 4px solid transparent; }
+.ds.vr .tabs button.on { color: var(--d-ink); font-weight: 600; border-bottom-color: var(--d-accent); }
+.ds.vr .pane.on { display: block; min-height: 392px; padding: 16px 20px; }
+.ds.vr .tiles { gap: 12px; margin-bottom: 12px; }
+.ds.vr .tile { height: 104px; font-size: 19px; gap: 8px; }
+.ds.vr .tile svg { width: 44px; height: 44px; padding: 9px; }
+.ds.vr .row { min-height: 52px; font-size: 21px; }
+.ds.vr .lab small { font-size: 16px; }
+.ds.vr .step button { width: 52px; height: 48px; font-size: 26px; }
+.ds.vr .step output { min-width: 96px; font-size: 21px; }
+.ds.vr .chip { font-size: 20px; padding: 8px 16px; }
+.ds.vr .seg button { height: 50px; font-size: 20px; border-radius: 25px; }
+.ds.vr .chk { height: 60px; font-size: 22px; gap: 16px; }
+.ds.vr .chk i { width: 32px; height: 32px; font-size: 18px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Меню строительства в масштабе VR</h1>
+    <p class="lede">Дизайн Сони поставлен в «окно шлема» в реальном размере и на реальном расстоянии. Сравните макет как есть и вариант под VR. Оба считаются от размера пикселя макета в миллиметрах и дистанции до панели.</p>
+  </header>
+
+  <div class="layout">
+    <section class="card" aria-label="Окно шлема">
+      <div class="bar">
+        <h2 style="margin:0">Вид из шлема, 80° × 55°</h2>
+        <div class="variants" role="group" aria-label="Вариант панели">
+          <button type="button" id="vVR" aria-pressed="true">Под VR</button>
+          <button type="button" id="vAS" aria-pressed="false">Макет как есть</button>
+        </div>
+      </div>
+      <div class="view" id="view">
+        <div class="eye" id="eye"><span>уровень глаз</span></div>
+        <div class="zone" id="zone"><span>удобная зона ±30° × ±20° (ориентир)</span></div>
+        <div class="mount" id="mount"></div>
+        <div class="clip" id="clipTop" hidden>Верх панели вне поля зрения</div>
+        <div class="clip" id="clipBot" hidden>Низ панели вне поля зрения</div>
+      </div>
+      <div class="legend">
+        <span>Панель висит перед головой, центр на 0,2 м ниже глаз, как в <code>VRMenuController</code>.</span>
+        <span>Кнопки и вкладки в макете кликабельны.</span>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="card">
+        <h2>Параметры</h2>
+        <div class="ctrl"><label for="dist">Расстояние до панели <output id="distOut"></output></label><input type="range" id="dist" min="0.8" max="3" step="0.1" value="1.5"></div>
+        <div class="ctrl"><label for="mm">Размер пикселя макета <output id="mmOut"></output></label><input type="range" id="mm" min="1" max="5" step="0.1" value="2"></div>
+      </div>
+
+      <div class="card">
+        <h2 id="calcTitle">Размеры</h2>
+        <table>
+          <tr><th>Панель в макете</th><td id="mPx"></td></tr>
+          <tr><th>Панель в мире</th><td id="mM"></td></tr>
+          <tr><th>Угол по горизонтали</th><td id="mH"></td></tr>
+          <tr><th>Угол по вертикали</th><td id="mV"></td></tr>
+          <tr><th>Самый мелкий текст</th><td id="mT"></td></tr>
+          <tr><th>Самая мелкая кнопка</th><td id="mB"></td></tr>
+        </table>
+        <div class="checks">
+          <div class="chk-row" id="cFit"><span class="pill"></span><span></span></div>
+          <div class="chk-row" id="cText"><span class="pill"></span><span></span></div>
+          <div class="chk-row" id="cBtn"><span class="pill"></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Что изменено для VR</h2>
+        <ul class="notes">
+          <li><b>Вкладки</b> вместо одной колонки 5 разделов: макет высотой около 1290 px в шлем не входит.</li>
+          <li><b>Шрифт от 19 px</b> вместо 10–13 px, <b>кнопки от 48 px</b> вместо 20–28 px.</li>
+          <li>Цвета, иконки, состояние «выбрано» (оранжевая рамка), порядок элементов внутри разделов остались как у Сони.</li>
+          <li>Иконки здесь условные: в игре нужны экспорты Сони. Размеры макета оценены по картинке, они приблизительные.</li>
+          <li>Пороги в проверках (1,5° для текста, 3° для кнопки, ±30°×±20° для зоны) это ориентиры, а не стандарт. Окончательно проверит шлем (ROA-31).</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var HFOV = 80, VSIZE = 0.62, EYE_DROP = 0.2;
+  var variant = 'vr';
+  var META = {
+    vr: { name: 'Под VR', minFont: 19, minBtn: 44 },
+    as: { name: 'Макет как есть', minFont: 10, minBtn: 20 }
+  };
+
+  var I = {
+    road: '<path d="M8 21 10 3M16 21 14 3M12 6v2M12 11v2M12 16v2"/>',
+    bridge: '<path d="M3 10h18M6 10v9M18 10v9M3 19h18"/>',
+    flyover: '<path d="M3 18c4 0 5-9 9-9s5 9 9 9"/>',
+    tunnel: '<path d="M4 20v-8a8 8 0 0 1 16 0v8M9 20v-5a3 3 0 0 1 6 0v5"/>',
+    parking: '<path d="M9 19V6h4a3.5 3.5 0 0 1 0 7H9"/>',
+    lamp: '<path d="M12 21V8M7 8h10l-2-4H9z"/>',
+    bin: '<circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16v.5"/>',
+    bench: '<path d="M5 10h14v4H5zM7 14v5M17 14v5"/>',
+    bus: '<rect x="5" y="4" width="14" height="13" rx="2"/><path d="M5 12h14M8 20v-3M16 20v-3"/>',
+    sign: '<path d="M12 3v18M6 5h12v6H6z"/>',
+    fence: '<path d="M5 7v12M10 7v12M15 7v12M20 7v12M3 11h18M3 16h18"/>',
+    move: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>',
+    trash: '<path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/>',
+    anchor: '<circle cx="12" cy="5" r="2"/><path d="M12 7v14M8 10h8M5 14a7 7 0 0 0 14 0"/>'
+  };
+  function tile(label, icon, group, sel) {
+    return '<button type="button" class="tile' + (sel ? ' sel' : '') + '" data-group="' + group + '" data-label="' + label + '"><svg viewBox="0 0 24 24">' + I[icon] + '</svg>' + label + '</button>';
+  }
+  function step(val, unit) { return '<span class="step"><button type="button" data-d="-1" aria-label="Меньше">−</button><output data-unit="' + unit + '">' + val + ' ' + unit + '</output><button type="button" data-d="1" aria-label="Больше">+</button></span>'; }
+  function chk(label, on) { return '<button type="button" class="chk' + (on ? ' on' : '') + '"><i></i>' + label + '</button>'; }
+
+  var TYPE = '<div class="tiles">' + tile('Дорога','road','type',1) + tile('Мост','bridge','type') + tile('Эстакада','flyover','type') + '</div><div class="tiles two">' + tile('Тоннель','tunnel','type') + tile('Парковка','parking','type') + '</div>';
+  var SEG = '<div class="row"><span>Длина</span>' + step(48,'м') + '</div><div class="row"><span>Ширина</span>' + step(7,'м') + '</div>' +
+    '<div class="row col"><span>Количество полос</span><div class="seg" data-seg><button type="button">1</button><button type="button" class="sel">2</button><button type="button">3</button><button type="button">4</button></div></div>' +
+    '<div class="row"><span class="lab" style="color:#a8946f">Высота<small>для моста / эстакады</small></span><span class="chip off">— м</span></div>' +
+    '<div class="row"><span class="lab">Направление<small>авто, по протягиванию</small></span><span class="chip">СВ, 42°</span></div>' +
+    '<div class="row col"><span>Тип покрытия</span><div class="seg fill" data-seg><button type="button" class="sel">Бетон</button><button type="button">Асфальт</button><button type="button">…</button></div></div>';
+  var ROAD = chk('Тротуар', 1) + chk('Бордюр') + chk('Столбы / фонари');
+  var SIDE = '<div class="tiles">' + tile('Фонарь','lamp','side') + tile('Урна','bin','side') + tile('Лавочка','bench','side') + '</div><div class="tiles">' + tile('Остановка','bus','side') + tile('Знак','sign','side') + tile('Ограждение','fence','side') + '</div>';
+  var TOOLS = '<div class="tiles">' + tile('Переместить','move','tool') + tile('Удалить','trash','tool') + tile('Точка привязки','anchor','tool') + '</div>';
+
+  function head() {
+    return '<div class="hd"><h3>Строительство дорог</h3><div class="crumb" id="crumb">Проезжая часть → Дорога</div><button type="button" class="x" aria-label="Закрыть">✕</button></div>';
+  }
+  function build(v) {
+    var h = head();
+    // как в макете: нумерация 1, 2, 4, 3, 5
+    h += '<div class="sec"><h4>1. Проезжая часть</h4>' + TYPE + '</div>';
+    h += '<div class="sec"><h4>2. Параметры сегмента</h4>' + SEG + '</div>';
+    h += '<div class="sec"><h4>4. Придорожные объекты</h4>' + SIDE + '</div>';
+    h += '<div class="sec"><h4>3. Настройки дороги</h4>' + ROAD + '</div>';
+    h += '<div class="sec"><h4>5. Инструменты редактирования</h4>' + TOOLS + '</div>';
+    if (v === 'vr') {
+      h += '<div class="tabs" role="tablist">' + ['Тип','Сегмент','Дорога','Объекты','Инструменты'].map(function (t, i) { return '<button type="button" role="tab" data-tab="' + i + '"' + (i === 0 ? ' class="on"' : '') + '>' + t + '</button>'; }).join('') + '</div>';
+      [TYPE, SEG, ROAD, SIDE, TOOLS].forEach(function (p, i) { h += '<div class="pane' + (i === 0 ? ' on' : '') + '" data-pane="' + i + '">' + p + '</div>'; });
+    }
+    return '<div class="ds' + (v === 'vr' ? ' vr' : '') + '">' + h + '</div>';
+  }
+
+  var mount = $('mount'), view = $('view');
+  function render() { mount.innerHTML = build(variant); layout(); }
+
+  mount.addEventListener('click', function (e) {
+    var t = e.target.closest('button'); if (!t) return;
+    var tab = t.getAttribute('data-tab');
+    if (tab !== null) {
+      mount.querySelectorAll('.tabs button').forEach(function (b) { b.classList.toggle('on', b === t); });
+      mount.querySelectorAll('.pane').forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-pane') === tab); });
+      layout(); return;
+    }
+    var g = t.getAttribute('data-group');
+    if (g) {
+      mount.querySelectorAll('.tile[data-group="' + g + '"]').forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-label') === t.getAttribute('data-label')); });
+      if (g === 'type') { mount.querySelectorAll('.crumb').forEach(function (c) { c.textContent = 'Проезжая часть → ' + t.getAttribute('data-label'); }); }
+      return;
+    }
+    if (t.parentNode.hasAttribute('data-seg')) { t.parentNode.querySelectorAll('button').forEach(function (b) { b.classList.toggle('sel', b === t); }); return; }
+    if (t.hasAttribute('data-d')) {
+      var o = t.parentNode.querySelector('output'), n = parseInt(o.textContent, 10) + parseInt(t.getAttribute('data-d'), 10);
+      o.textContent = Math.max(1, n) + ' ' + o.getAttribute('data-unit'); return;
+    }
+    if (t.classList.contains('chk')) t.classList.toggle('on');
+  });
+
+  function deg(m, d) { return 2 * Math.atan(m / 2 / d) * 180 / Math.PI; }
+  function dg(v) { return v.toFixed(1).replace('.', ',') + '°'; }
+  function mt(v) { return v.toFixed(2).replace('.', ',') + ' м'; }
+  function cm(v) { return (v * 100).toFixed(1).replace('.', ',') + ' см'; }
+  function row(id, cls, pill, txt) { var e = $(id); e.className = 'chk-row ' + cls; e.children[0].textContent = pill; e.children[1].textContent = txt; }
+
+  function layout() {
+    var d = parseFloat($('dist').value), s = parseFloat($('mm').value) / 1000;
+    $('distOut').textContent = d.toFixed(1).replace('.', ',') + ' м';
+    $('mmOut').textContent = (s * 1000).toFixed(1).replace('.', ',') + ' мм';
+
+    var W = view.clientWidth, f = (W / 2) / Math.tan(HFOV / 2 * Math.PI / 180), H = Math.round(W * VSIZE);
+    view.style.height = H + 'px';
+    var el = mount.firstElementChild, pw = el.offsetWidth, ph = el.offsetHeight;
+    var k = s * f / d;
+    var cy = H / 2 + EYE_DROP / d * f;
+    var left = W / 2 - pw * k / 2, top = cy - ph * k / 2;
+    mount.style.width = pw + 'px'; mount.style.transform = 'scale(' + k + ')';
+    mount.style.left = left + 'px'; mount.style.top = top + 'px';
+
+    var zw = Math.tan(30 * Math.PI / 180) * f * 2, zh = Math.tan(20 * Math.PI / 180) * f * 2;
+    var z = $('zone'); z.style.width = zw + 'px'; z.style.height = zh + 'px'; z.style.left = (W / 2 - zw / 2) + 'px'; z.style.top = (H / 2 - zh / 2) + 'px';
+    $('eye').style.top = (H / 2) + 'px';
+    var ct = $('clipTop'), cb = $('clipBot');
+    ct.hidden = !(top < -2); ct.style.top = '8px';
+    cb.hidden = !(top + ph * k > H + 2); cb.style.bottom = '8px';
+
+    var wm = pw * s, hm = ph * s, hd = deg(wm, d), vd = deg(hm, d), m = META[variant];
+    var tA = deg(m.minFont * s, d), bA = deg(m.minBtn * s, d);
+    $('calcTitle').textContent = 'Размеры: ' + m.name;
+    $('mPx').textContent = pw + ' × ' + ph + ' px';
+    $('mM').textContent = mt(wm) + ' × ' + mt(hm);
+    $('mH').textContent = dg(hd);
+    $('mV').textContent = dg(vd);
+    $('mT').textContent = m.minFont + ' px = ' + cm(m.minFont * s) + ' (' + dg(tA) + ')';
+    $('mB').textContent = m.minBtn + ' px = ' + cm(m.minBtn * s) + ' (' + dg(bA) + ')';
+
+    if (vd > 55 || hd > 80) row('cFit', 'bad', 'Не входит', 'Панель выходит за поле зрения 80°×55°. Игроку придётся вертеть головой.');
+    else if (vd > 40 || hd > 60) row('cFit', 'warn', 'Крупновата', 'Выходит за удобную зону ±30°×±20°, придётся поворачивать голову.');
+    else row('cFit', 'ok', 'Помещается', 'Вся панель в удобной зоне.');
+    if (tA < 1) row('cText', 'bad', 'Мелко', 'Текст читается с усилием. Нужно больше 1,5° на высоту буквы.');
+    else if (tA < 1.5) row('cText', 'warn', 'На грани', 'Мелкий текст ниже ориентира 1,5°. Крупнее шрифт или ближе панель.');
+    else row('cText', 'ok', 'Читаемо', 'Самый мелкий текст выше ориентира 1,5°.');
+    if (bA < 2) row('cBtn', 'bad', 'Мелко', 'Попасть лучом в такую кнопку трудно. Нужно около 3° и больше.');
+    else if (bA < 3) row('cBtn', 'warn', 'На грани', 'Кнопка меньше ориентира 3°.');
+    else row('cBtn', 'ok', 'Попасть легко', 'Самая мелкая кнопка выше ориентира 3°.');
+  }
+
+  function setVariant(v) {
+    variant = v;
+    $('vVR').setAttribute('aria-pressed', v === 'vr'); $('vAS').setAttribute('aria-pressed', v === 'as');
+    render();
+  }
+  $('vVR').addEventListener('click', function () { setVariant('vr'); });
+  $('vAS').addEventListener('click', function () { setVariant('as'); });
+  $('dist').addEventListener('input', layout);
+  $('mm').addEventListener('input', layout);
+  if (window.ResizeObserver) new ResizeObserver(layout).observe(view); else window.addEventListener('resize', layout);
+  render();
+})();
+</script>
