@@ -384,19 +384,37 @@ public class VRMenuController : MonoBehaviour
 
     private void PositionMenuInFront()
     {
-        if (playerHead == null) return;
+        Transform head = ResolveHead();
+        if (head == null) return;
 
-        Vector3 headForward = playerHead.forward;
+        Vector3 headForward = head.forward;
         headForward.y = 0;
         headForward.Normalize();
 
-        Vector3 targetPosition = playerHead.position + (headForward * spawnDistance);
+        Vector3 targetPosition = head.position + (headForward * spawnDistance);
         targetPosition.y += spawnHeightOffset;
 
         menuCanvas.transform.position = targetPosition;
 
-        menuCanvas.transform.LookAt(new Vector3(playerHead.position.x, targetPosition.y, playerHead.position.z));
+        menuCanvas.transform.LookAt(new Vector3(head.position.x, targetPosition.y, head.position.z));
         menuCanvas.transform.Rotate(0, 180, 0);
+    }
+
+    // Если playerHead не задан в инспекторе, берём камеру игрока (XR MainCamera / камеру канваса).
+    private Transform ResolveHead()
+    {
+        if (playerHead != null) return playerHead;
+
+        Camera cam = Camera.main;
+        if (cam == null && menuCanvas != null)
+        {
+            Canvas c = menuCanvas.GetComponent<Canvas>();
+            if (c != null) cam = c.worldCamera;
+        }
+        if (cam == null) cam = FindObjectOfType<Camera>();
+
+        if (cam != null) playerHead = cam.transform;
+        return playerHead;
     }
 
     private static void SetLayerRecursively(GameObject obj, int layer)
