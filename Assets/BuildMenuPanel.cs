@@ -1,15 +1,22 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 /// <summary>
-/// Меню строительства по макету Сони. Собирается кодом внутри мирового канваса.
-/// Работает только выбор объекта из каталога BuildManager (по имени). Всё остальное: заглушки,
-/// которые меняют своё состояние и пишут пояснение в строку статуса.
-/// Вариант под VR: вкладки, шрифт от 19, кнопки от 44 единиц канваса.
-/// Иконки: положить спрайты в Assets/Resources/UI/Icons/{ключ}.png (road, bridge, flyover, tunnel,
-/// parking, lamp, bin, bench, bus, sign, fence, move, trash, anchor). Пока их нет, рисуется кружок с буквой.
+/// Меню строительства по макету Сони.
+///
+/// Два режима:
+///  - обычный: панель собирается кодом (Init -> Build), работает в любой сцене;
+///  - baked: панель уже собрана в сцене (инструмент «Стройка/Закрепить панель меню в сцене»),
+///    тогда в Play ничего не строится, а только привязывается логика к готовым кнопкам.
+///
+/// Благодаря этому в закреплённой панели кнопки — обычные объекты сцены:
+/// к ним можно привязать свои скрипты прямо в инспекторе.
+///
+/// Вариант для VR: вкладки, шрифт от 19, кнопки от 44 единиц канваса.
+/// Иконки: спрайты в Assets/Resources/UI/Icons/{ключ}.png (road, bridge, flyover, tunnel,
+/// parking, lamp, bin, bench, bus, sign, fence, move, trash, anchor). Пока их нет — кружок с буквой.
 /// </summary>
 public class BuildMenuPanel : MonoBehaviour
 {
@@ -20,30 +27,28 @@ public class BuildMenuPanel : MonoBehaviour
     const float PaneW = W - Pad * 2f;
 
     // Палитра макета
-    static readonly Color Cream = Hex("FFF8EC");
-    static readonly Color Line = Hex("F3E6CF");
-    static readonly Color TileCol = Hex("FFE8CC");
-    static readonly Color TileSel = Hex("FFDCB0");
-    static readonly Color SegCol = Hex("FFEFD8");
-    static readonly Color ChipCol = Hex("FFF0DC");
-    static readonly Color IconBg = Hex("FFF3E2");
-    static readonly Color Orange = Hex("FF9F1C");
-    static readonly Color Ink = Hex("3B2B1A");
-    static readonly Color Mute = Hex("8A7558");
-    static readonly Color Faint = Hex("B79C78");
-    static readonly Color Clear = new Color(1f, 1f, 1f, 0f);
+    public static readonly Color Cream = Hex("FFF8EC");
+    public static readonly Color Line = Hex("F3E6CF");
+    public static readonly Color TileCol = Hex("FFE8CC");
+    public static readonly Color TileSel = Hex("FFDCB0");
+    public static readonly Color SegCol = Hex("FFEFD8");
+    public static readonly Color ChipCol = Hex("FFF0DC");
+    public static readonly Color IconBg = Hex("FFF3E2");
+    public static readonly Color Orange = Hex("FF9F1C");
+    public static readonly Color Ink = Hex("3B2B1A");
+    public static readonly Color Mute = Hex("8A7558");
+    public static readonly Color Faint = Hex("B79C78");
+    public static readonly Color Clear = new Color(1f, 1f, 1f, 0f);
 
-    class Choice
-    {
-        public string label;
-        public string[] keywords;
-        public Image border, fill;
-        public Text text;
-        public Color fillNormal, fillSelected, textNormal, textSelected;
-    }
+    static readonly string[] TabNames = { "Tab_Тип", "Tab_Сегмент", "Tab_Дорога", "Tab_Объекты", "Tab_Инструменты" };
+    static readonly string[] PaneNames = { "Pane_Type", "Pane_Segment", "Pane_Road", "Pane_Side", "Pane_Tools" };
 
-    BuildManager buildManager;
-    VRMenuController menu;
+    [Tooltip("Панель уже собрана в сцене: в Play ничего не строим, только привязываем логику.")]
+    public bool baked;
+
+    [SerializeField] BuildManager buildManager;
+    [SerializeField] VRMenuController menu;
+
     Font font;
     Text crumb, status;
     Image tabLine;
@@ -52,7 +57,11 @@ public class BuildMenuPanel : MonoBehaviour
     readonly List<RectTransform> tabRects = new List<RectTransform>();
 
     // выбор типа и придорожных объектов в одной группе, чтобы выбрано было что-то одно
-    readonly List<Choice> pickGroup = new List<Choice>();
+    readonly List<BuildMenuChoice> pickGroup = new List<BuildMenuChoice>();
+    readonly List<BuildMenuChoice> toolGroup = new List<BuildMenuChoice>();
+    readonly List<BuildMenuStubControl> stubs = new List<BuildMenuStubControl>();
+
+    // ---------- жизненный цикл ----------
 
     public void Init(BuildManager bm, VRMenuController mc)
     {
@@ -61,68 +70,76 @@ public class BuildMenuPanel : MonoBehaviour
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
-        RectTransform rt = (RectTransform)transform;
-        rt.anchorMin = Vector2.zero;
-        rt.anchorMax = Vector2.one;
-        rt.offsetMin = Vector2.zero;
-        rt.offsetMax = Vector2.zero;
-        Build(rt);
+        if (!baked)
+        {
+            RectTransform rt = (RectTransform)transform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            Build(rt);
+        }
+
+        Bind();
     }
 
-    // ---------- сборка ----------
+    void Start()
+    {
+        if (!baked) return; // процедурный путь всё сделал в Init
+
+        if (menu == null) menu = FindObjectOfType<VRMenuController>();
+        if (buildManager == null && menu != null) buildManager = menu.buildManager;
+        if (buildManager == null) buildManager = FindObjectOfType<BuildManager>();
+        Bind();
+    }
+
+    // ---------- сборка (только редактор / процедурный режим) ----------
 
     void Build(RectTransform root)
     {
         AddImage(root, Cream, Rounded(), true);
 
         // шапка
-        Label(root, 20, 10, 470, 34, "Строительство дорог", 26, Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
+        Label(root, 20, 10, 470, 34, "Строительство дорог", 26, Ink, TextAnchor.MiddleLeft, FontStyle.Bold).name = "Title";
         crumb = Label(root, 20, 42, 470, 24, "Проезжая часть > Дорога", 17, Mute, TextAnchor.MiddleLeft);
-        MakeFlat(root, "Close", W - 64, 13, 44, 44, "X", 20, Ink, TileCol, Circle(), () => menu.CloseMenu());
+        crumb.name = "Crumb";
+        MakeFlat(root, "Close", W - 64, 13, 44, 44, "X", 20, Ink, TileCol, Circle());
         AddImage(NewPlaced("HeaderLine", root, 0, HeaderH - 1, W, 1), Line, null, false);
 
         // вкладки
-        string[] tabs = { "Тип", "Сегмент", "Дорога", "Объекты", "Инструменты" };
-        float tabW = W / tabs.Length;
-        for (int i = 0; i < tabs.Length; i++)
+        float tabW = W / TabNames.Length;
+        for (int i = 0; i < TabNames.Length; i++)
         {
-            int idx = i;
-            RectTransform tr = NewPlaced("Tab_" + tabs[i], root, i * tabW, HeaderH, tabW, TabsH);
+            RectTransform tr = NewPlaced(TabNames[i], root, i * tabW, HeaderH, tabW, TabsH);
             AddImage(tr, Clear, null, true);
-            Text t = Label(tr, 0, 0, tabW, TabsH, tabs[i], 19, Mute, TextAnchor.MiddleCenter);
+            Text t = Label(tr, 0, 0, tabW, TabsH, TabNames[i].Substring(4), 19, Mute, TextAnchor.MiddleCenter);
             t.resizeTextForBestFit = true;
             t.resizeTextMinSize = 12;
             t.resizeTextMaxSize = 19;
             Button b = tr.gameObject.AddComponent<Button>();
             Flat(b);
-            b.onClick.AddListener(() => SelectTab(idx));
-            tabLabels.Add(t);
-            tabRects.Add(tr);
         }
         AddImage(NewPlaced("TabsLine", root, 0, HeaderH + TabsH - 1, W, 1), Line, null, false);
         tabLine = AddImage(NewPlaced("TabUnderline", root, 0, HeaderH + TabsH - 4, tabW, 4), Orange, null, false);
 
         // содержимое
         RectTransform content = NewPlaced("Content", root, 0, HeaderH + TabsH, W, ContentH);
-        panes.Add(BuildTypePane(content));
-        panes.Add(BuildSegmentPane(content));
-        panes.Add(BuildRoadPane(content));
-        panes.Add(BuildSidePane(content));
-        panes.Add(BuildToolsPane(content));
+        BuildTypePane(content);
+        BuildSegmentPane(content);
+        BuildRoadPane(content);
+        BuildSidePane(content);
+        BuildToolsPane(content);
 
         // статус
         AddImage(NewPlaced("StatusLine", root, 0, H - StatusH, W, 1), Line, null, false);
         status = Label(root, Pad, H - StatusH, PaneW, StatusH, "Выберите тип объекта. Параметры и инструменты пока заглушки.", 16, Mute, TextAnchor.MiddleLeft);
+        status.name = "Status";
         status.resizeTextForBestFit = true;
         status.resizeTextMinSize = 12;
         status.resizeTextMaxSize = 16;
-
-        SelectTab(0);
-        if (pickGroup.Count > 0) pickGroup[0].border.color = Orange; // «Дорога» подсвечена как в макете
-        if (pickGroup.Count > 0) ApplyChoice(pickGroup, pickGroup[0]);
     }
 
-    RectTransform BuildTypePane(RectTransform content)
+    void BuildTypePane(RectTransform content)
     {
         RectTransform pane = NewPane(content, "Pane_Type");
         string[,] row1 = { { "road", "Дорога" }, { "bridge", "Мост" }, { "flyover", "Эстакада" } };
@@ -134,14 +151,13 @@ public class BuildMenuPanel : MonoBehaviour
         };
         float tw = (PaneW - 32f) / 3f;
         for (int i = 0; i < 3; i++)
-            MakeTile(pane, i * (tw + 16f), 0, tw, 104, row1[i, 0], row1[i, 1], kw[i], pickGroup, "Проезжая часть");
+            MakeTile(pane, i * (tw + 16f), 0, tw, 104, row1[i, 0], row1[i, 1], kw[i], "Проезжая часть");
         float w2 = (PaneW - 16f) / 2f;
         for (int i = 0; i < 2; i++)
-            MakeTile(pane, i * (w2 + 16f), 116, w2, 104, row2[i, 0], row2[i, 1], kw[3 + i], pickGroup, "Проезжая часть");
-        return pane;
+            MakeTile(pane, i * (w2 + 16f), 116, w2, 104, row2[i, 0], row2[i, 1], kw[3 + i], "Проезжая часть");
     }
 
-    RectTransform BuildSegmentPane(RectTransform content)
+    void BuildSegmentPane(RectTransform content)
     {
         RectTransform pane = NewPane(content, "Pane_Segment");
         float rowH = 52f, step = 58f, ctrlRight = PaneW;
@@ -163,19 +179,17 @@ public class BuildMenuPanel : MonoBehaviour
 
         Row(pane, 5 * step, rowH, "Тип покрытия", null);
         MakeSegment(pane, 5 * step, ctrlRight, 300, new[] { "Бетон", "Асфальт", "..." }, 0, true, "Тип покрытия");
-        return pane;
     }
 
-    RectTransform BuildRoadPane(RectTransform content)
+    void BuildRoadPane(RectTransform content)
     {
         RectTransform pane = NewPane(content, "Pane_Road");
         MakeCheck(pane, 0, "Тротуар", true);
         MakeCheck(pane, 64, "Бордюр", false);
         MakeCheck(pane, 128, "Столбы / фонари", false);
-        return pane;
     }
 
-    RectTransform BuildSidePane(RectTransform content)
+    void BuildSidePane(RectTransform content)
     {
         RectTransform pane = NewPane(content, "Pane_Side");
         string[,] items =
@@ -190,27 +204,24 @@ public class BuildMenuPanel : MonoBehaviour
         };
         float tw = (PaneW - 32f) / 3f;
         for (int i = 0; i < 6; i++)
-            MakeTile(pane, (i % 3) * (tw + 16f), (i / 3) * 116f, tw, 104, items[i, 0], items[i, 1], kw[i], pickGroup, "Придорожные объекты");
-        return pane;
+            MakeTile(pane, (i % 3) * (tw + 16f), (i / 3) * 116f, tw, 104, items[i, 0], items[i, 1], kw[i], "Придорожные объекты");
     }
 
-    RectTransform BuildToolsPane(RectTransform content)
+    void BuildToolsPane(RectTransform content)
     {
         RectTransform pane = NewPane(content, "Pane_Tools");
         string[,] items = { { "move", "Переместить" }, { "trash", "Удалить" }, { "anchor", "Точка привязки" } };
-        List<Choice> toolGroup = new List<Choice>();
         float tw = (PaneW - 32f) / 3f;
         for (int i = 0; i < 3; i++)
-            MakeTile(pane, i * (tw + 16f), 0, tw, 104, items[i, 0], items[i, 1], new string[0], toolGroup, "Инструменты");
-        return pane;
+            MakeTile(pane, i * (tw + 16f), 0, tw, 104, items[i, 0], items[i, 1], new string[0], "Инструменты");
     }
 
     // ---------- элементы ----------
 
     void MakeTile(RectTransform parent, float x, float y, float w, float h, string key, string label,
-                  string[] keywords, List<Choice> group, string crumbGroup)
+                  string[] keywords, string crumbGroup)
     {
-        RectTransform rt = NewPlaced(label, parent, x, y, w, h);
+        RectTransform rt = NewPlaced("Tile_" + label, parent, x, y, w, h);
         Image border = AddImage(rt, Clear, Rounded(), true);
         RectTransform fillRt = NewRect("Fill", rt);
         Stretch(fillRt, 3f);
@@ -222,24 +233,22 @@ public class BuildMenuPanel : MonoBehaviour
         t.resizeTextMinSize = 12;
         t.resizeTextMaxSize = 19;
 
-        Choice c = new Choice
-        {
-            label = label, keywords = keywords, border = border, fill = fill, text = t,
-            fillNormal = TileCol, fillSelected = TileSel, textNormal = Mute, textSelected = Ink
-        };
-        group.Add(c);
+        BuildMenuChoice choice = rt.gameObject.AddComponent<BuildMenuChoice>();
+        choice.label = label;
+        choice.keywords = keywords;
+        choice.crumbGroup = crumbGroup;
+        choice.kind = BuildMenuChoiceKind.Tile;
+        choice.border = border;
+        choice.fill = fill;
+        choice.text = t;
+        choice.fillNormal = TileCol;
+        choice.fillSelected = TileSel;
+        choice.textNormal = Mute;
+        choice.textSelected = Ink;
 
         Button b = rt.gameObject.AddComponent<Button>();
         b.targetGraphic = fill;
         Tint(b);
-        b.onClick.AddListener(() =>
-        {
-            // тип и придорожные объекты делят один выбор, инструменты отдельный
-            List<Choice> g = group;
-            if (crumbGroup != "Инструменты") g = pickGroup;
-            ApplyChoice(g, c);
-            OnPick(crumbGroup, c);
-        });
     }
 
     void MakeIcon(RectTransform parent, string key, string label, float x, float y, float size)
@@ -272,41 +281,46 @@ public class BuildMenuPanel : MonoBehaviour
         Label(pane, 0, y + 30, 280, 20, sub, 15, Faint, TextAnchor.MiddleLeft);
     }
 
-    void MakeStepper(RectTransform pane, float y, float right, string name, int value)
+    void MakeStepper(RectTransform parent, float y, float right, string name, int value)
     {
         float w = 200f;
-        RectTransform rt = NewPlaced("Stepper_" + name, pane, right - w, y + 2, w, 48);
+        RectTransform rt = NewPlaced("Stepper_" + name, parent, right - w, y + 2, w, 48);
         AddImage(rt, ChipCol, Rounded(), true);
         Text val = Label(rt, 52, 0, 96, 48, value + " м", 21, Ink, TextAnchor.MiddleCenter, FontStyle.Bold);
-        MakeFlat(rt, "Minus", 0, 0, 52, 48, "-", 28, Faint, Clear, null, () =>
-        {
-            value = Mathf.Max(1, value - 1);
-            val.text = value + " м";
-            Stub(name);
-        });
-        MakeFlat(rt, "Plus", 148, 0, 52, 48, "+", 28, Faint, Clear, null, () =>
-        {
-            value = Mathf.Min(999, value + 1);
-            val.text = value + " м";
-            Stub(name);
-        });
+        MakeFlat(rt, "Minus", 0, 0, 52, 48, "-", 28, Faint, Clear, null);
+        MakeFlat(rt, "Plus", 148, 0, 52, 48, "+", 28, Faint, Clear, null);
+
+        BuildMenuStubControl ctrl = rt.gameObject.AddComponent<BuildMenuStubControl>();
+        ctrl.mode = BuildMenuStubMode.Stepper;
+        ctrl.label = name;
+        ctrl.value = value;
+        ctrl.valueLabel = val;
+        ctrl.suffix = " м";
     }
 
-    void MakeChip(RectTransform pane, float y, float right, float w, string text, Color color, bool strong)
+    void MakeChip(RectTransform parent, float y, float right, float w, string text, Color color, bool strong)
     {
-        RectTransform rt = NewPlaced("Chip", pane, right - w, y + 6, w, 40);
+        RectTransform rt = NewPlaced("Chip", parent, right - w, y + 6, w, 40);
         AddImage(rt, ChipCol, Rounded(), false);
         Label(rt, 0, 0, w, 40, text, 20, color, TextAnchor.MiddleCenter, strong ? FontStyle.Bold : FontStyle.Normal);
     }
 
-    void MakeSegment(RectTransform pane, float y, float right, float w, string[] labels, int initial, bool filled, string name)
+    void MakeSegment(RectTransform parent, float y, float right, float w, string[] labels, int initial, bool filled, string name)
     {
-        List<Choice> group = new List<Choice>();
         float gap = 8f;
         float bw = (w - gap * (labels.Length - 1)) / labels.Length;
+
+        RectTransform box = NewPlaced("Seg_" + name, parent, right - w, y + 1, w, 50);
+        BuildMenuStubControl ctrl = box.gameObject.AddComponent<BuildMenuStubControl>();
+        ctrl.mode = BuildMenuStubMode.Segment;
+        ctrl.label = name;
+        ctrl.minValue = 0;
+        ctrl.maxValue = labels.Length - 1;
+
+        List<BuildMenuChoice> options = new List<BuildMenuChoice>();
         for (int i = 0; i < labels.Length; i++)
         {
-            RectTransform rt = NewPlaced("Seg_" + labels[i], pane, right - w + i * (bw + gap), y + 1, bw, 50);
+            RectTransform rt = NewPlaced("Opt_" + labels[i], box, i * (bw + gap), 0, bw, 50);
             Image border = AddImage(rt, Clear, Rounded(), true);
             RectTransform fillRt = NewRect("Fill", rt);
             Stretch(fillRt, 3f);
@@ -316,29 +330,32 @@ public class BuildMenuPanel : MonoBehaviour
             t.resizeTextMinSize = 12;
             t.resizeTextMaxSize = 20;
 
-            Choice c = new Choice
-            {
-                label = labels[i], border = border, fill = fill, text = t,
-                fillNormal = SegCol, fillSelected = filled ? Orange : TileSel,
-                textNormal = Mute, textSelected = filled ? Color.white : Ink
-            };
-            group.Add(c);
+            BuildMenuChoice choice = rt.gameObject.AddComponent<BuildMenuChoice>();
+            choice.kind = BuildMenuChoiceKind.Segment;
+            choice.label = labels[i];
+            choice.owner = ctrl;
+            choice.index = i;
+            choice.border = border;
+            choice.fill = fill;
+            choice.text = t;
+            choice.fillNormal = SegCol;
+            choice.fillSelected = filled ? Orange : TileSel;
+            choice.textNormal = Mute;
+            choice.textSelected = filled ? Color.white : Ink;
 
             Button b = rt.gameObject.AddComponent<Button>();
             b.targetGraphic = fill;
             Tint(b);
-            b.onClick.AddListener(() =>
-            {
-                ApplyChoice(group, c);
-                Stub(name);
-            });
+            options.Add(choice);
         }
-        ApplyChoice(group, group[Mathf.Clamp(initial, 0, group.Count - 1)]);
+
+        ctrl.options = options.ToArray();
+        ctrl.Select(initial);
     }
 
-    void MakeCheck(RectTransform pane, float y, string label, bool on)
+    void MakeCheck(RectTransform parent, float y, string label, bool on)
     {
-        RectTransform row = NewPlaced("Check_" + label, pane, 0, y, PaneW, 56);
+        RectTransform row = NewPlaced("Check_" + label, parent, 0, y, PaneW, 56);
         AddImage(row, Clear, null, true);
         RectTransform ring = NewPlaced("Ring", row, 0, 12, 32, 32);
         Image ringImg = AddImage(ring, Orange, Circle(), false);
@@ -346,58 +363,202 @@ public class BuildMenuPanel : MonoBehaviour
         Image dot = AddImage(NewPlaced("Dot", ring, 9, 9, 14, 14), Orange, Circle(), false);
         Label(row, 48, 0, PaneW - 48, 56, label, 22, Ink, TextAnchor.MiddleLeft);
 
-        Action refresh = () =>
-        {
-            ringImg.color = on ? Orange : TileSel;
-            innerImg.color = on ? TileCol : Cream;
-            dot.enabled = on;
-        };
-        refresh();
+        BuildMenuStubControl ctrl = row.gameObject.AddComponent<BuildMenuStubControl>();
+        ctrl.mode = BuildMenuStubMode.Check;
+        ctrl.label = label;
+        ctrl.ring = ringImg;
+        ctrl.inner = innerImg;
+        ctrl.dot = dot;
+        ctrl.on = on;
+        ctrl.Refresh();
 
         Button b = row.gameObject.AddComponent<Button>();
         Flat(b);
-        b.onClick.AddListener(() =>
+    }
+
+    // ---------- привязка логики к готовым объектам ----------
+
+    void Bind()
+    {
+        panes.Clear();
+        tabLabels.Clear();
+        tabRects.Clear();
+        pickGroup.Clear();
+        toolGroup.Clear();
+        stubs.Clear();
+
+        Transform content = transform.Find("Content");
+        if (content == null) return;
+
+        for (int i = 0; i < PaneNames.Length; i++)
         {
-            on = !on;
-            refresh();
-            Stub(label);
-        });
+            Transform p = content.Find(PaneNames[i]);
+            panes.Add(p != null ? (RectTransform)p : null);
+        }
+
+        for (int i = 0; i < TabNames.Length; i++)
+        {
+            Transform t = transform.Find(TabNames[i]);
+            tabRects.Add(t != null ? (RectTransform)t : null);
+            Text lbl = null;
+            if (t != null)
+            {
+                Transform tx = t.Find("Text");
+                if (tx != null) lbl = tx.GetComponent<Text>();
+            }
+            tabLabels.Add(lbl);
+        }
+
+        Transform crumbT = transform.Find("Crumb");
+        if (crumbT != null) crumb = crumbT.GetComponent<Text>();
+        Transform statusT = transform.Find("Status");
+        if (statusT != null) status = statusT.GetComponent<Text>();
+        Transform underline = transform.Find("TabUnderline");
+        if (underline != null) tabLine = underline.GetComponent<Image>();
+
+        // тип и придорожные объекты делят один выбор, инструменты — отдельную группу
+        CollectChoices(panes[0], pickGroup);
+        CollectChoices(panes[3], pickGroup);
+        CollectChoices(panes[4], toolGroup);
+
+        foreach (Transform pane in panes)
+        {
+            if (pane == null) continue;
+            stubs.AddRange(pane.GetComponentsInChildren<BuildMenuStubControl>(true));
+        }
+
+        AttachListeners();
+
+        SelectTab(0);
+        if (pickGroup.Count > 0) ApplyChoice(pickGroup, pickGroup[0]);
+    }
+
+    static void CollectChoices(RectTransform pane, List<BuildMenuChoice> into)
+    {
+        if (pane == null) return;
+        foreach (BuildMenuChoice c in pane.GetComponentsInChildren<BuildMenuChoice>(true))
+            into.Add(c);
+    }
+
+    void AttachListeners()
+    {
+        // вкладки
+        for (int i = 0; i < tabRects.Count; i++)
+        {
+            int idx = i;
+            RectTransform tab = tabRects[i];
+            if (tab == null) continue;
+            Button b = tab.GetComponent<Button>();
+            if (b != null) b.onClick.AddListener(() => SelectTab(idx));
+        }
+
+        // крестик
+        Transform closeT = transform.Find("Close");
+        if (closeT != null)
+        {
+            Button b = closeT.GetComponent<Button>();
+            if (b != null) b.onClick.AddListener(() => { if (menu != null) menu.CloseMenu(); });
+        }
+
+        // плитки и пункты сегментов
+        foreach (Transform pane in panes)
+        {
+            if (pane == null) continue;
+            foreach (BuildMenuChoice c in pane.GetComponentsInChildren<BuildMenuChoice>(true))
+            {
+                Button b = c.GetComponent<Button>();
+                if (b == null) continue;
+                BuildMenuChoice captured = c;
+                b.onClick.AddListener(() => OnChoiceClicked(captured));
+            }
+        }
+
+        // заглушки
+        foreach (BuildMenuStubControl s in stubs)
+        {
+            if (s == null) continue;
+            if (s.mode == BuildMenuStubMode.Stepper)
+            {
+                AttachStubButton(s, "Minus", s.Minus);
+                AttachStubButton(s, "Plus", s.Plus);
+            }
+            else if (s.mode == BuildMenuStubMode.Check)
+            {
+                Button b = s.GetComponent<Button>();
+                if (b != null) b.onClick.AddListener(() => { s.Toggle(); WriteStub(s.label); });
+            }
+        }
+    }
+
+    void AttachStubButton(BuildMenuStubControl s, string childName, UnityAction action)
+    {
+        Transform t = s.transform.Find(childName);
+        if (t == null) return;
+        Button b = t.GetComponent<Button>();
+        if (b == null) return;
+        b.onClick.AddListener(() => { action(); WriteStub(s.label); });
     }
 
     // ---------- поведение ----------
 
     void SelectTab(int index)
     {
-        for (int i = 0; i < panes.Count; i++) panes[i].gameObject.SetActive(i == index);
+        for (int i = 0; i < panes.Count; i++)
+            if (panes[i] != null) panes[i].gameObject.SetActive(i == index);
         for (int i = 0; i < tabLabels.Count; i++)
         {
             bool on = i == index;
+            if (tabLabels[i] == null) continue;
             tabLabels[i].color = on ? Ink : Mute;
             tabLabels[i].fontStyle = on ? FontStyle.Bold : FontStyle.Normal;
         }
-        RectTransform tl = tabLine.rectTransform;
+        if (tabLine == null || index >= tabRects.Count) return;
         RectTransform tab = tabRects[index];
-        tl.anchoredPosition = new Vector2(tab.anchoredPosition.x, tl.anchoredPosition.y);
+        if (tab == null) return;
+        tabLine.rectTransform.anchoredPosition = new Vector2(tab.anchoredPosition.x, tabLine.rectTransform.anchoredPosition.y);
     }
 
-    void ApplyChoice(List<Choice> group, Choice selected)
+    void ApplyChoice(List<BuildMenuChoice> group, BuildMenuChoice selected)
     {
-        foreach (Choice c in group)
+        foreach (BuildMenuChoice c in group)
         {
-            bool on = c == selected;
-            c.border.color = on ? Orange : Clear;
-            c.fill.color = on ? c.fillSelected : c.fillNormal;
-            c.text.color = on ? c.textSelected : c.textNormal;
-            c.text.fontStyle = on ? FontStyle.Bold : FontStyle.Normal;
+            if (c == null) continue;
+            c.ApplyStyle(c == selected);
         }
     }
 
-    void OnPick(string group, Choice c)
+    void OnChoiceClicked(BuildMenuChoice c)
     {
-        crumb.text = group + " > " + c.label;
+        if (c == null) return;
+
+        if (c.kind == BuildMenuChoiceKind.Segment)
+        {
+            if (c.owner != null)
+            {
+                c.owner.Select(c.index);
+                WriteStub(c.owner.label);
+            }
+            return;
+        }
+
+        if (c.crumbGroup == "Инструменты")
+        {
+            ApplyChoice(toolGroup, c);
+            OnPick(c.crumbGroup, c);
+            return;
+        }
+
+        // тип и придорожные объекты делят один выбор
+        ApplyChoice(pickGroup, c);
+        OnPick(c.crumbGroup, c);
+    }
+
+    void OnPick(string group, BuildMenuChoice c)
+    {
+        if (crumb != null) crumb.text = group + " > " + c.label;
         if (group == "Инструменты")
         {
-            Stub(c.label);
+            WriteStub(c.label);
             return;
         }
 
@@ -419,11 +580,12 @@ public class BuildMenuPanel : MonoBehaviour
         if (item != null && buildManager != null)
         {
             buildManager.SetBuildMode(index);
-            status.text = (isStub ? "Заглушка в игре: " : "В игре выбрано: ") + item.itemName + ". Закройте панель и стройте.";
+            if (status != null)
+                status.text = (isStub ? "Заглушка в игре: " : "В игре выбрано: ") + item.itemName + ". Закройте панель и стройте.";
         }
         else
         {
-            Stub(c.label);
+            WriteStub(c.label);
         }
     }
 
@@ -441,6 +603,7 @@ public class BuildMenuPanel : MonoBehaviour
                 return it;
             }
         }
+        if (keywords == null) return null;
         for (int i = 0; i < buildManager.catalog.Count; i++)
         {
             BuildableItem it = buildManager.catalog[i];
@@ -458,7 +621,7 @@ public class BuildMenuPanel : MonoBehaviour
         return null;
     }
 
-    void Stub(string what)
+    void WriteStub(string what)
     {
         if (status != null) status.text = "Заглушка: «" + what + "» пока не влияет на постройку.";
     }
@@ -535,14 +698,13 @@ public class BuildMenuPanel : MonoBehaviour
 
     // плоская кнопка с текстом
     void MakeFlat(RectTransform parent, string name, float x, float y, float w, float h, string text, int size,
-                  Color textColor, Color bg, Sprite sprite, Action onClick)
+                  Color textColor, Color bg, Sprite sprite)
     {
         RectTransform rt = NewPlaced(name, parent, x, y, w, h);
         AddImage(rt, bg, sprite, true);
         Label(rt, 0, 0, w, h, text, size, textColor, TextAnchor.MiddleCenter, FontStyle.Bold);
         Button b = rt.gameObject.AddComponent<Button>();
         Flat(b);
-        b.onClick.AddListener(() => onClick());
     }
 
     static void Flat(Button b)
@@ -574,24 +736,43 @@ public class BuildMenuPanel : MonoBehaviour
 
     static Sprite roundedSprite, circleSprite;
 
-    static Sprite Rounded()
+    public static Sprite Rounded()
     {
-        if (roundedSprite == null) roundedSprite = MakeSprite(48, 16, true);
+        if (roundedSprite == null)
+        {
+            roundedSprite = Resources.Load<Sprite>("BuildMenu/UI_Rounded");
+            if (roundedSprite == null) roundedSprite = MakeSprite(48, 16, true);
+        }
         return roundedSprite;
     }
 
-    static Sprite Circle()
+    public static Sprite Circle()
     {
-        if (circleSprite == null) circleSprite = MakeSprite(64, 32, false);
+        if (circleSprite == null)
+        {
+            circleSprite = Resources.Load<Sprite>("BuildMenu/UI_Circle");
+            if (circleSprite == null) circleSprite = MakeSprite(64, 32, false);
+        }
         return circleSprite;
     }
 
-    static Sprite MakeSprite(int size, int radius, bool sliced)
+    public static Sprite MakeSprite(int size, int radius, bool sliced)
+    {
+        Texture2D tex = MakeTexture(size, radius);
+        tex.hideFlags = HideFlags.HideAndDontSave;
+        tex.Apply(false, true);
+        Vector4 border = sliced ? new Vector4(radius, radius, radius, radius) : Vector4.zero;
+        Sprite s = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
+        s.hideFlags = HideFlags.HideAndDontSave;
+        return s;
+    }
+
+    // Читаемая текстура — из неё baker сохраняет PNG-ассеты в Resources.
+    public static Texture2D MakeTexture(int size, int radius)
     {
         Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
         tex.wrapMode = TextureWrapMode.Clamp;
         tex.filterMode = FilterMode.Bilinear;
-        tex.hideFlags = HideFlags.HideAndDontSave;
         Color32[] px = new Color32[size * size];
         for (int y = 0; y < size; y++)
         {
@@ -606,11 +787,15 @@ public class BuildMenuPanel : MonoBehaviour
             }
         }
         tex.SetPixels32(px);
-        tex.Apply(false, true);
-        Vector4 border = sliced ? new Vector4(radius, radius, radius, radius) : Vector4.zero;
-        Sprite s = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
-        s.hideFlags = HideFlags.HideAndDontSave;
-        return s;
+        tex.Apply(false, false);
+        return tex;
+    }
+
+    // После создания ассетов кэш сбрасываем, иначе в панель попадут временные спрайты.
+    public static void ClearSpriteCache()
+    {
+        roundedSprite = null;
+        circleSprite = null;
     }
 
     static Color Hex(string hex)

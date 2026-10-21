@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
 
+[ExecuteAlways]
 public class VRMenuController : MonoBehaviour
 {
     [Header("References")]
@@ -28,6 +29,10 @@ public class VRMenuController : MonoBehaviour
 
     private BuildMenuPanel designedPanel;
 
+    // предпросмотр новой панели в редакторе (объект временный, в сцену не сохраняется)
+    private Vector2 previewSizeDelta;
+    private bool previewSizeSaved;
+
     private List<GameObject> menuButtons = new List<GameObject>();
     private Transform scrollContent;
     private Camera previewCamera;
@@ -37,6 +42,9 @@ public class VRMenuController : MonoBehaviour
 
     private void Awake()
     {
+        // в редакторе поля не трогаем, иначе сцена засоряется изменениями
+        if (!Application.isPlaying) return;
+
         if (buildManager == null) buildManager = GetComponent<BuildManager>();
         if (buildManager == null) buildManager = FindObjectOfType<BuildManager>();
 
@@ -49,6 +57,12 @@ public class VRMenuController : MonoBehaviour
 
     private void OnEnable()
     {
+        if (!Application.isPlaying)
+        {
+            BuildEditPreview();
+            return;
+        }
+
         toggleMenuAction.action.Enable();
         toggleMenuAction.action.started += OnTriggerToggle;
 
@@ -61,9 +75,76 @@ public class VRMenuController : MonoBehaviour
 
     private void OnDisable()
     {
+        if (!Application.isPlaying)
+        {
+            ClearEditPreview();
+            return;
+        }
+
         toggleMenuAction.action.Disable();
         toggleMenuAction.action.started -= OnTriggerToggle;
         CleanupPreviewSystem();
+    }
+
+    // В редакторе показываем новую панель сразу, как в игре: старое легаси-меню остаётся
+    // в сцене, но новая панель собирается во временный объект и его перекрывает.
+    // Если панель уже закреплена в сцене (Tools/Стройка/Закрепить панель меню в сцене) —
+    // показываем её, ничего не собираем.
+    private void BuildEditPreview()
+    {
+        if (menuCanvas == null || !useDesignedPanel) return;
+
+        DestroyPreviewPanel();
+
+        if (menuCanvas.transform.Find("BuildMenuPanel") != null) return; // панель закреплена в сцене
+
+        BuildManager bm = buildManager;
+        if (bm == null) bm = GetComponent<BuildManager>();
+        if (bm == null) bm = FindObjectOfType<BuildManager>();
+
+        RectTransform canvasRT = menuCanvas.GetComponent<RectTransform>();
+        if (canvasRT != null)
+        {
+            previewSizeDelta = canvasRT.sizeDelta;
+            canvasRT.sizeDelta = new Vector2(BuildMenuPanel.W, BuildMenuPanel.H);
+            previewSizeSaved = true;
+        }
+
+        GameObject go = new GameObject("BuildMenuPanelPreview", typeof(RectTransform));
+        go.layer = menuCanvas.layer;
+        go.transform.SetParent(menuCanvas.transform, false);
+        designedPanel = go.AddComponent<BuildMenuPanel>();
+        designedPanel.Init(bm, this);
+        SetHideFlagsRecursive(go.transform);
+    }
+
+    private void ClearEditPreview()
+    {
+        DestroyPreviewPanel();
+        designedPanel = null;
+
+        if (menuCanvas == null) return;
+
+        RectTransform canvasRT = menuCanvas.GetComponent<RectTransform>();
+        if (canvasRT != null && previewSizeSaved)
+        {
+            canvasRT.sizeDelta = previewSizeDelta;
+            previewSizeSaved = false;
+        }
+    }
+
+    private void DestroyPreviewPanel()
+    {
+        if (menuCanvas == null) return;
+
+        Transform existing = menuCanvas.transform.Find("BuildMenuPanelPreview");
+        if (existing != null) DestroyImmediate(existing.gameObject);
+    }
+
+    private static void SetHideFlagsRecursive(Transform t)
+    {
+        t.gameObject.hideFlags = HideFlags.HideAndDontSave;
+        foreach (Transform child in t) SetHideFlagsRecursive(child);
     }
 
     private void SetupPreviewSystem()
@@ -132,17 +213,31 @@ public class VRMenuController : MonoBehaviour
         }
     }
 
-    // Меню по макету Сони (BuildMenuPanel): прячет старую сетку карточек и собирает панель с вкладками
+    // Меню по макету Сони (BuildMenuPanel): прячет старую сетку карточек и собирает панель с вкладками.
+    // Если панель закреплена в сцене — используем её, ничего не собираем.
     private void EnsureDesignedPanel()
     {
         if (designedPanel != null) return;
 
-        foreach (Transform child in menuCanvas.transform)
-            child.gameObject.SetActive(false);
+        // предпросмотр из редактора мог уцелеть после перезагрузки домена
+        Transform leftover = menuCanvas.transform.Find("BuildMenuPanelPreview");
+        if (leftover != null) Destroy(leftover.gameObject);
 
         RectTransform canvasRT = menuCanvas.GetComponent<RectTransform>();
         if (canvasRT != null)
             canvasRT.sizeDelta = new Vector2(BuildMenuPanel.W, BuildMenuPanel.H);
+
+        Transform baked = menuCanvas.transform.Find("BuildMenuPanel");
+        if (baked != null)
+        {
+            designedPanel = baked.GetComponent<BuildMenuPanel>();
+            foreach (Transform child in menuCanvas.transform)
+                if (child != baked) child.gameObject.SetActive(false);
+            return;
+        }
+
+        foreach (Transform child in menuCanvas.transform)
+            child.gameObject.SetActive(false);
 
         GameObject go = new GameObject("BuildMenuPanel", typeof(RectTransform));
         go.layer = menuCanvas.layer;
@@ -153,6 +248,7 @@ public class VRMenuController : MonoBehaviour
 
     public void CloseMenu()
     {
+        if (!Application.isPlaying) return;
         if (menuCanvas != null) menuCanvas.SetActive(false);
     }
 
