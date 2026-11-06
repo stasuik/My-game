@@ -5,10 +5,12 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Меню строительства по макету Сони. Собирается кодом внутри мирового канваса.
-/// Работает только выбор объекта из каталога BuildManager (по имени). Всё остальное: заглушки,
-/// которые меняют своё состояние и пишут пояснение в строку статуса.
+/// Плитки вкладок «Тип» и «Объекты» создаются из BuildManager.catalog при первом открытии меню:
+/// каждый BuildableItem = одна плитка, клик по ней вызывает BuildManager.SetBuildMode(индекс в каталоге).
+/// Вкладка задаётся полем BuildableItem.category. Заполнить каталог: Construction > Sync Models To Menu.
+/// Параметры сегмента, настройки дороги и инструменты пока заглушки, пишут пояснение в строку статуса.
 /// Вариант под VR: вкладки, шрифт от 19, кнопки от 44 единиц канваса.
-/// Иконки: положить спрайты в Assets/Resources/UI/Icons/{ключ}.png (road, bridge, flyover, tunnel,
+/// Иконки: BuildableItem.previewIcon, иначе спрайты Assets/Resources/UI/Icons/{ключ}.png (road, bridge, flyover, tunnel,
 /// parking, lamp, bin, bench, bus, sign, fence, move, trash, anchor). Пока их нет, рисуется кружок с буквой.
 /// </summary>
 public class BuildMenuPanel : MonoBehaviour
@@ -33,10 +35,19 @@ public class BuildMenuPanel : MonoBehaviour
     static readonly Color Faint = Hex("B79C78");
     static readonly Color Clear = new Color(1f, 1f, 1f, 0f);
 
+    // плитка меню: либо объект из каталога, либо заглушка (stubLabel), либо инструмент
+    class Entry
+    {
+        public string label;
+        public string iconKey;
+        public BuildableItem item;
+        public string stubLabel;
+    }
+
     class Choice
     {
         public string label;
-        public string[] keywords;
+        public Entry entry;
         public Image border, fill;
         public Text text;
         public Color fillNormal, fillSelected, textNormal, textSelected;
@@ -118,26 +129,26 @@ public class BuildMenuPanel : MonoBehaviour
         status.resizeTextMaxSize = 16;
 
         SelectTab(0);
-        if (pickGroup.Count > 0) pickGroup[0].border.color = Orange; // «Дорога» подсвечена как в макете
-        if (pickGroup.Count > 0) ApplyChoice(pickGroup, pickGroup[0]);
+        // первый объект вкладки «Тип» (обычно «Дорога») выбран сразу, как в макете
+        Choice first = pickGroup.Find(c => c.entry.item != null);
+        if (first != null)
+        {
+            ApplyChoice(pickGroup, first);
+            OnPick("Проезжая часть", first);
+        }
     }
 
+    // Вкладка «Тип»: все объекты каталога с категорией Roadway + заглушки, для которых ещё нет модели
     RectTransform BuildTypePane(RectTransform content)
     {
         RectTransform pane = NewPane(content, "Pane_Type");
-        string[,] row1 = { { "road", "Дорога" }, { "bridge", "Мост" }, { "flyover", "Эстакада" } };
-        string[,] row2 = { { "tunnel", "Тоннель" }, { "parking", "Парковка" } };
-        string[][] kw =
+        List<Entry> entries = CatalogEntries(BuildCategory.Roadway);
+        foreach (string stub in new[] { "Эстакада", "Тоннель", "Парковка" })
         {
-            new[] { "дорог", "road", "doroga" }, new[] { "мост", "bridge", "most" }, new[] { "эстакад" },
-            new[] { "тоннел", "туннел", "tunnel" }, new[] { "парков", "parking" }
-        };
-        float tw = (PaneW - 32f) / 3f;
-        for (int i = 0; i < 3; i++)
-            MakeTile(pane, i * (tw + 16f), 0, tw, 104, row1[i, 0], row1[i, 1], kw[i], pickGroup, "Проезжая часть");
-        float w2 = (PaneW - 16f) / 2f;
-        for (int i = 0; i < 2; i++)
-            MakeTile(pane, i * (w2 + 16f), 116, w2, 104, row2[i, 0], row2[i, 1], kw[3 + i], pickGroup, "Проезжая часть");
+            if (entries.Exists(e => e.label.ToLowerInvariant() == stub.ToLowerInvariant())) continue;
+            entries.Add(new Entry { label = stub, iconKey = IconKey(stub), stubLabel = stub });
+        }
+        MakeGrid(pane, entries, "Проезжая часть");
         return pane;
     }
 
@@ -175,22 +186,11 @@ public class BuildMenuPanel : MonoBehaviour
         return pane;
     }
 
+    // Вкладка «Объекты»: все объекты каталога с категорией Roadside, по 6 на страницу
     RectTransform BuildSidePane(RectTransform content)
     {
         RectTransform pane = NewPane(content, "Pane_Side");
-        string[,] items =
-        {
-            { "lamp", "Фонарь" }, { "bin", "Урна" }, { "bench", "Лавочка" },
-            { "bus", "Остановка" }, { "sign", "Знак" }, { "fence", "Ограждение" }
-        };
-        string[][] kw =
-        {
-            new[] { "фонар", "fonar", "lamp" }, new[] { "урн", "мусор", "musor", "urna" }, new[] { "лавоч", "lavoch", "bench" },
-            new[] { "останов", "ostanov" }, new[] { "знак", "znak", "sign" }, new[] { "огражд", "забор", "fence" }
-        };
-        float tw = (PaneW - 32f) / 3f;
-        for (int i = 0; i < 6; i++)
-            MakeTile(pane, (i % 3) * (tw + 16f), (i / 3) * 116f, tw, 104, items[i, 0], items[i, 1], kw[i], pickGroup, "Придорожные объекты");
+        MakeGrid(pane, CatalogEntries(BuildCategory.Roadside), "Придорожные объекты");
         return pane;
     }
 
@@ -201,22 +201,23 @@ public class BuildMenuPanel : MonoBehaviour
         List<Choice> toolGroup = new List<Choice>();
         float tw = (PaneW - 32f) / 3f;
         for (int i = 0; i < 3; i++)
-            MakeTile(pane, i * (tw + 16f), 0, tw, 104, items[i, 0], items[i, 1], new string[0], toolGroup, "Инструменты");
+            MakeTile(pane, i * (tw + 16f), 0, tw, 104, new Entry { label = items[i, 1], iconKey = items[i, 0] }, toolGroup, "Инструменты");
         return pane;
     }
 
     // ---------- элементы ----------
 
-    void MakeTile(RectTransform parent, float x, float y, float w, float h, string key, string label,
-                  string[] keywords, List<Choice> group, string crumbGroup)
+    void MakeTile(RectTransform parent, float x, float y, float w, float h, Entry entry,
+                  List<Choice> group, string crumbGroup)
     {
+        string label = entry.label;
         RectTransform rt = NewPlaced(label, parent, x, y, w, h);
         Image border = AddImage(rt, Clear, Rounded(), true);
         RectTransform fillRt = NewRect("Fill", rt);
         Stretch(fillRt, 3f);
         Image fill = AddImage(fillRt, TileCol, Rounded(), true);
 
-        MakeIcon(rt, key, label, w * 0.5f - 22f, 12f, 44f);
+        MakeIcon(rt, entry, w * 0.5f - 22f, 12f, 44f);
         Text t = Label(rt, 4, 62, w - 8, 34, label, 19, Mute, TextAnchor.MiddleCenter);
         t.resizeTextForBestFit = true;
         t.resizeTextMinSize = 12;
@@ -224,7 +225,7 @@ public class BuildMenuPanel : MonoBehaviour
 
         Choice c = new Choice
         {
-            label = label, keywords = keywords, border = border, fill = fill, text = t,
+            label = label, entry = entry, border = border, fill = fill, text = t,
             fillNormal = TileCol, fillSelected = TileSel, textNormal = Mute, textSelected = Ink
         };
         group.Add(c);
@@ -242,12 +243,15 @@ public class BuildMenuPanel : MonoBehaviour
         });
     }
 
-    void MakeIcon(RectTransform parent, string key, string label, float x, float y, float size)
+    void MakeIcon(RectTransform parent, Entry entry, float x, float y, float size)
     {
+        string label = entry.label;
         RectTransform rt = NewPlaced("Icon", parent, x, y, size, size);
         Image img = rt.gameObject.AddComponent<Image>();
         img.raycastTarget = false;
-        Sprite custom = Resources.Load<Sprite>("UI/Icons/" + key);
+        // приоритет: превью модели из BuildableItem, затем иконка из Resources, затем кружок с буквой
+        Sprite custom = entry.item != null && entry.item.previewIcon != null ? entry.item.previewIcon : null;
+        if (custom == null && !string.IsNullOrEmpty(entry.iconKey)) custom = Resources.Load<Sprite>("UI/Icons/" + entry.iconKey);
         if (custom != null)
         {
             img.sprite = custom;
@@ -401,22 +405,28 @@ public class BuildMenuPanel : MonoBehaviour
             return;
         }
 
-        int index;
-        BuildableItem item = FindItem(c.label, c.keywords, out index);
+        if (buildManager == null || buildManager.catalog == null)
+        {
+            Stub(c.label);
+            return;
+        }
+
+        BuildableItem item = c.entry.item;
         bool isStub = false;
-        if (item == null && buildManager != null && buildManager.catalog != null && StubBuildItems.IsStub(c.label))
+        if (item == null && c.entry.stubLabel != null)
         {
             // модели ещё нет: подставляем простую форму из кубов, в каталоге она остаётся до конца игры
-            item = StubBuildItems.Create(c.label);
+            item = StubBuildItems.Create(c.entry.stubLabel);
             if (item != null)
             {
                 buildManager.catalog.Add(item);
-                index = buildManager.catalog.Count - 1;
+                c.entry.item = item;
                 isStub = true;
             }
         }
 
-        if (item != null && buildManager != null)
+        int index = item != null ? buildManager.catalog.IndexOf(item) : -1;
+        if (index >= 0)
         {
             buildManager.SetBuildMode(index);
             status.text = (isStub ? "Заглушка в игре: " : "В игре выбрано: ") + item.itemName + ". Закройте панель и стройте.";
@@ -427,35 +437,81 @@ public class BuildMenuPanel : MonoBehaviour
         }
     }
 
-    BuildableItem FindItem(string label, string[] keywords, out int index)
+    // ---------- каталог -> плитки ----------
+
+    // Плитки строятся из BuildManager.catalog: добавил BuildableItem в каталог, и он появился в меню
+    List<Entry> CatalogEntries(BuildCategory category)
     {
-        index = -1;
-        if (buildManager == null || buildManager.catalog == null) return null;
+        List<Entry> list = new List<Entry>();
+        if (buildManager == null || buildManager.catalog == null) return list;
+        foreach (BuildableItem it in buildManager.catalog)
+        {
+            if (it == null || it.ResolvedCategory != category) continue;
+            string label = string.IsNullOrEmpty(it.itemName) ? it.name : it.itemName;
+            list.Add(new Entry { label = label, iconKey = IconKey(label), item = it });
+        }
+        return list;
+    }
+
+    // ключ иконки в Resources/UI/Icons по имени объекта
+    static string IconKey(string label)
+    {
         string l = label.ToLowerInvariant();
-        for (int i = 0; i < buildManager.catalog.Count; i++)
+        string[,] map =
         {
-            BuildableItem it = buildManager.catalog[i];
-            if (it != null && !string.IsNullOrEmpty(it.itemName) && it.itemName.ToLowerInvariant() == l)
-            {
-                index = i;
-                return it;
-            }
-        }
-        for (int i = 0; i < buildManager.catalog.Count; i++)
-        {
-            BuildableItem it = buildManager.catalog[i];
-            if (it == null || string.IsNullOrEmpty(it.itemName)) continue;
-            string name = it.itemName.ToLowerInvariant();
-            foreach (string k in keywords)
-            {
-                if (name.Contains(k))
-                {
-                    index = i;
-                    return it;
-                }
-            }
-        }
+            { "эстакад", "flyover" }, { "мост", "bridge" }, { "тоннел", "tunnel" }, { "туннел", "tunnel" },
+            { "парков", "parking" }, { "дорог", "road" }, { "фонар", "lamp" }, { "светофор", "lamp" },
+            { "урн", "bin" }, { "мусор", "bin" }, { "лавоч", "bench" }, { "останов", "bus" },
+            { "знак", "sign" }, { "огражд", "fence" }, { "шлагбаум", "fence" }
+        };
+        for (int i = 0; i < map.GetLength(0); i++)
+            if (l.Contains(map[i, 0])) return map[i, 1];
         return null;
+    }
+
+    // Сетка 3 x 2 со страницами: в VR кнопки «<» и «>» надёжнее прокрутки
+    void MakeGrid(RectTransform pane, List<Entry> entries, string crumbGroup)
+    {
+        const int perPage = 6;
+        float tw = (PaneW - 32f) / 3f;
+        int pages = Mathf.Max(1, Mathf.CeilToInt(entries.Count / (float)perPage));
+        List<RectTransform> pageRects = new List<RectTransform>();
+
+        for (int p = 0; p < pages; p++)
+        {
+            RectTransform page = NewPlaced("Page_" + p, pane, 0, 0, PaneW, 220);
+            pageRects.Add(page);
+            for (int k = 0; k < perPage; k++)
+            {
+                int i = p * perPage + k;
+                if (i >= entries.Count) break;
+                MakeTile(page, (k % 3) * (tw + 16f), (k / 3) * 116f, tw, 104, entries[i], pickGroup, crumbGroup);
+            }
+        }
+
+        if (entries.Count == 0)
+            Label(pane, 0, 0, PaneW, 104, "В каталоге нет объектов. Construction > Sync Models To Menu", 18, Faint, TextAnchor.MiddleCenter);
+
+        if (pages <= 1) return;
+
+        int current = 0;
+        Text counter = Label(pane, 0, 240, PaneW, 48, "", 19, Mute, TextAnchor.MiddleCenter, FontStyle.Bold);
+        Action show = () =>
+        {
+            for (int p = 0; p < pageRects.Count; p++) pageRects[p].gameObject.SetActive(p == current);
+            counter.text = (current + 1) + " / " + pages;
+        };
+        MakeFlat(pane, "PrevPage", 0, 240, 120, 48, "<", 26, Ink, TileCol, Rounded(), () =>
+        {
+            current = (current + pages - 1) % pages;
+            show();
+        });
+        MakeFlat(pane, "NextPage", PaneW - 120, 240, 120, 48, ">", 26, Ink, TileCol, Rounded(), () =>
+        {
+            current = (current + 1) % pages;
+            show();
+        });
+        show();
     }
 
     void Stub(string what)
