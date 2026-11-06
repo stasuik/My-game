@@ -4,20 +4,28 @@ using UnityEngine;
 
 public class BuildManager : MonoBehaviour
 {
-    // Перечисление всех типов объектов, которые мы можем строить
-    public enum BuildMode { Road, BusStop, Border }
+    [Header("Каталог всех объектов")]
+    public List<BuildableItem> catalog = new List<BuildableItem>();
 
-    [Header("Текущий режим строительства")]
-    public BuildMode currentMode = BuildMode.Road;
+    private int currentIndex = 0;
 
-    [Header("Префабы объектов для установки")]
-    public GameObject busStopPrefab; // Сюда позже закинем 3D-модель остановки
-    public GameObject borderPrefab;  // Сюда позже закинем 3D-модель бордюра
-
-    // Метод, который будут вызывать кнопки из VR-меню
-    public void SetBuildMode(int modeIndex)
+    public BuildableItem CurrentItem
     {
-        currentMode = (BuildMode)modeIndex;
-        Debug.Log("Режим строительства изменен на: " + currentMode);
+        get
+        {
+            if (catalog != null && catalog.Count > 0 && currentIndex < catalog.Count)
+                return catalog[currentIndex];
+            return null;
+        }
+    }
+
+    // Этот метод вызывается кнопками из VR-меню (передаем ID элемента из списка)
+    public void SetBuildMode(int index)
+    {
+        if (index >= 0 && index < catalog.Count)
+        {
+            currentIndex = index;
+            Debug.Log("Выбран режим строительства: " + catalog[currentIndex].itemName);
+        }
     }
 }

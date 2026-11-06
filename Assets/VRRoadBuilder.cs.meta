@@ -3,7 +3,9 @@ guid: 555271f5bd2176b49b008e9c46343635
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - roadSegmentPrefab: {fileID: 3180661995252876405, guid: b8b0e9c732bdf634583c1a04a254d867, type: 3}
+  - ghostSegmentPrefab: {fileID: 4901036142333088739, guid: bb1f9eb93f1db034a944ba0f4b50ea8b, type: 3}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

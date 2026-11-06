@@ -3,7 +3,12 @@ guid: a8d2b3b8fa46d784e88ed5f1f917dbed
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - roadBuilder: {instanceID: 0}
+  - buildManager: {instanceID: 0}
+  - handTransform: {instanceID: 0}
+  - triggerAction: {instanceID: 0}
+  - inputActions: {fileID: -944628639613478452, guid: c348712bda248c246b8c49b3db54643f, type: 3}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 
