@@ -430,6 +430,8 @@ public class BuildMenuPanel : MonoBehaviour
         {
             buildManager.SetBuildMode(index);
             status.text = (isStub ? "Заглушка в игре: " : "В игре выбрано: ") + item.itemName + ". Закройте панель и стройте.";
+            VRConstructionController construction = menu.GetComponent<VRConstructionController>();
+            if (construction != null) construction.PrepareForSelection();
         }
         else
         {

@@ -32,6 +32,7 @@ public class VRConstructionController : MonoBehaviour
     private InputAction rotateRightAction;
 
     private VRMenuController menuController;
+    private bool waitForTriggerRelease;
 
     private void Awake()
     {
@@ -108,6 +109,13 @@ public class VRConstructionController : MonoBehaviour
             singleRotationOffset = 0f;
             wasTriggerPressedLastFrame = isTriggerHeld;
             return;
+        }
+
+        if (waitForTriggerRelease)
+        {
+            wasTriggerPressedLastFrame = isTriggerHeld;
+            if (isTriggerHeld) return;
+            waitForTriggerRelease = false;
         }
 
         BuildableItem currentItem = buildManager.CurrentItem;
@@ -234,6 +242,15 @@ public class VRConstructionController : MonoBehaviour
         currentState = ConstructionState.Idle;
         buildPoints.Clear();
         if (roadBuilder != null) roadBuilder.ClearGhostRoad();
+    }
+
+    // Ignore the menu click until the trigger has been released.
+    public void PrepareForSelection()
+    {
+        CancelConstruction();
+        ClearSingleGhost();
+        singleRotationOffset = 0f;
+        waitForTriggerRelease = true;
     }
 
     public void ResetSingleRotation()
