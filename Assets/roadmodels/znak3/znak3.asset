@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: znak3
   m_EditorClassIdentifier: 
   itemName: "\u0417\u043D\u0430\u043A 3"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: 32595010ac8352c4a987df0341c7f321, type: 3}
+  category: 0
   finalPrefab: {fileID: 123543554944111221, guid: 78e5101503e1fc94ebc4db2961c61de2, type: 3}
   ghostPrefab: {fileID: 123543554944111221, guid: 78e5101503e1fc94ebc4db2961c61de2, type: 3}
   isSplineType: 0

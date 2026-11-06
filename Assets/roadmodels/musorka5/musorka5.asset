@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: musorka5
   m_EditorClassIdentifier: 
   itemName: "\u041C\u0443\u0441\u043E\u0440\u043A\u0430 5"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: d9dba07a3f3555348967b985f8a23e8b, type: 3}
+  category: 0
   finalPrefab: {fileID: 5043016039644420141, guid: 4173d7f6f818a764882e065c0fc01278, type: 3}
   ghostPrefab: {fileID: 5043016039644420141, guid: 4173d7f6f818a764882e065c0fc01278, type: 3}
   isSplineType: 0

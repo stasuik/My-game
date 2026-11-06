@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: mashina
   m_EditorClassIdentifier: 
   itemName: "\u041C\u0430\u0448\u0438\u043D\u0430"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: d4646383f9004f84db88970ba3267374, type: 3}
+  category: 0
   finalPrefab: {fileID: 7272474125951873533, guid: 26f56ae2f178bf147ae1a4a41c7b22f1, type: 3}
   ghostPrefab: {fileID: 7272474125951873533, guid: 26f56ae2f178bf147ae1a4a41c7b22f1, type: 3}
   isSplineType: 0

@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: gruzovik
   m_EditorClassIdentifier: 
   itemName: "\u0413\u0440\u0443\u0437\u043E\u0432\u0438\u043A"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: ce963c870d2526944b05a9566a14b804, type: 3}
+  category: 0
   finalPrefab: {fileID: 2064474075624068630, guid: 856f5151252b17b4696151afa9175f15, type: 3}
   ghostPrefab: {fileID: 2064474075624068630, guid: 856f5151252b17b4696151afa9175f15, type: 3}
   isSplineType: 0

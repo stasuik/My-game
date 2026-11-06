@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: doroga1
   m_EditorClassIdentifier: 
   itemName: "\u0414\u043E\u0440\u043E\u0433\u0430 1"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: 43ddbb9b50a99cb4699b9ac0387c4643, type: 3}
+  category: 1
   finalPrefab: {fileID: 919132149155446097, guid: 1be3cf4e16f19a24ca78fad9bbddbce0, type: 3}
   ghostPrefab: {fileID: 919132149155446097, guid: 1be3cf4e16f19a24ca78fad9bbddbce0, type: 3}
   isSplineType: 1

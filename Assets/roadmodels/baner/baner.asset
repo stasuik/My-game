@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: baner
   m_EditorClassIdentifier: 
   itemName: "\u0411\u0430\u043D\u043D\u0435\u0440"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: 3894f64cbce1c4645a85a30602bd87eb, type: 3}
+  category: 0
   finalPrefab: {fileID: 4490400934229015335, guid: ae15dbc75ff243b4ea8e024f8d64d94d, type: 3}
   ghostPrefab: {fileID: 4490400934229015335, guid: ae15dbc75ff243b4ea8e024f8d64d94d, type: 3}
   isSplineType: 0

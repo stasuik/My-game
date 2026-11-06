@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: Item_Road
   m_EditorClassIdentifier: 
   itemName: "\u0414\u043E\u0440\u043E\u0433\u0430"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: 5d1e7ce5c12aabf4fba005a91e850799, type: 3}
+  category: 1
   finalPrefab: {fileID: 4901036142333088739, guid: 64bf00f68686f1945b5f1dbfaec3f479, type: 3}
   ghostPrefab: {fileID: 4901036142333088739, guid: bb1f9eb93f1db034a944ba0f4b50ea8b, type: 3}
   isSplineType: 1

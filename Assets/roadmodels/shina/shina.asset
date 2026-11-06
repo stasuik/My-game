@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: shina
   m_EditorClassIdentifier: 
   itemName: "\u0428\u0438\u043D\u0430"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: b2729bac357706445ae658513b593a84, type: 3}
+  category: 0
   finalPrefab: {fileID: 8117288590235283447, guid: c7b9926cbb10fe149a2ab1d298d4ffb4, type: 3}
   ghostPrefab: {fileID: 8117288590235283447, guid: c7b9926cbb10fe149a2ab1d298d4ffb4, type: 3}
   isSplineType: 0

@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: Item_Bridge
   m_EditorClassIdentifier: 
   itemName: "\u041C\u043E\u0441\u0442"
+  previewIcon: {fileID: 21300000, guid: dda7e5be9df430c4797a06d1c0110b0d, type: 3}
+  category: 1
   finalPrefab: {fileID: 5324440308575896546, guid: c2e5bfc42ad03754faebebb6b32322a6, type: 3}
   ghostPrefab: {fileID: 1040150003208013355, guid: bbec0cb2da2242548a0ea5edac0049c3, type: 3}
   isSplineType: 1
@@ -20,6 +22,8 @@ MonoBehaviour:
   stepDistance: 2
   heightOffset: 0.02
   rotationOffset: {x: 0, y: 180, z: 0}
+  requireRoadProximity: 0
+  maxRoadDistance: 5
   generatePillars: 0
   pillarWidth: 0.3
   minPillarHeight: 1.5
