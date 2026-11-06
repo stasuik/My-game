@@ -63,6 +63,15 @@ public class VRConstructionController : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        triggerAction?.action?.Enable();
+        rotateLeftAction?.Enable();
+        rotateRightAction?.Enable();
+        if (handTransform == null)
+            Debug.LogError("Construction requires a handTransform. Assign the controller ray origin in the Inspector.", this);
+    }
+
     private void Update()
     {
         if (buildManager == null || roadBuilder == null || buildManager.CurrentItem == null ||
@@ -107,11 +116,12 @@ public class VRConstructionController : MonoBehaviour
         {
             if (currentItem.isSplineType)
             {
-                currentState = ConstructionState.Building;
                 buildPoints.Clear();
 
                 if (GetLaserHitPoint(out Vector3 hitPoint, out _))
                 {
+                    currentState = ConstructionState.Building;
+                    lastValidHitPoint = hitPoint;
                     buildPoints.Add(hitPoint);
                     initialBuildHeight = hitPoint.y;
                 }
@@ -206,6 +216,10 @@ public class VRConstructionController : MonoBehaviour
                     if (!currentItem.snapToTerrain) endPoint.y = initialBuildHeight;
                     buildPoints.Add(endPoint);
                 }
+
+                if (!currentItem.singleSpan && buildPoints.Count > 0 &&
+                    Vector3.Distance(buildPoints[buildPoints.Count - 1], lastValidHitPoint) > 0.01f)
+                    buildPoints.Add(lastValidHitPoint);
 
                 roadBuilder.BuildFinalRoad(buildPoints, currentItem);
                 buildPoints.Clear();
