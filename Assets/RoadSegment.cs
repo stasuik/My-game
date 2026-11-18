@@ -10,11 +10,16 @@ public class RoadSegment : MonoBehaviour
 
     public void Initialize(Vector3 start, Vector3 end, int lanesCount = 1)
     {
-        LanesCount = Mathf.Clamp(lanesCount, 1, 3);
         Vector3 direction = (end - start).normalized;
         if (direction.sqrMagnitude < 0.0001f) direction = transform.forward;
-        StartPoint = CreatePoint("Snap Start", start, -direction);
-        EndPoint = CreatePoint("Snap End", end, direction);
+        Initialize(start, end, direction, direction, lanesCount);
+    }
+
+    public void Initialize(Vector3 start, Vector3 end, Vector3 startForward, Vector3 endForward, int lanesCount)
+    {
+        LanesCount = Mathf.Clamp(lanesCount, 1, 3);
+        StartPoint = CreatePoint("Snap Start", start, -startForward);
+        EndPoint = CreatePoint("Snap End", end, endForward);
     }
 
     private const float SeamTolerance = 0.005f;
