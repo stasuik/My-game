@@ -13,6 +13,80 @@ public class VRRoadBuilder : MonoBehaviour
     private GameObject ghostContainer;
     private GameObject stretchGhost;
     private BuildableItem stretchGhostItem;
+    private int stretchGhostLanes;
+
+    private LineRenderer snapIndicator;
+    private Material snapIndicatorMaterial;
+
+    public SnapPoint FindAimedSnapPoint(Ray ray, float maxDistance, SnapPoint exclude = null,
+        System.Predicate<SnapPoint> isEligible = null)
+    {
+        SnapPoint nearest = null;
+        float radius = Mathf.Clamp(snapRadius, 0.5f, 1f);
+        float bestDistance = radius * radius;
+        float bestDepth = maxDistance;
+        foreach (SnapPoint point in SnapPoint.ActivePoints)
+        {
+            if (!point.Available || point == exclude || point.connectionType != SnapConnectionType.Roadway)
+                continue;
+            Vector3 delta = point.Position - ray.origin;
+            float depth = Vector3.Dot(delta, ray.direction);
+            if (depth <= 0f || depth > maxDistance) continue;
+            float distance = (delta - ray.direction * depth).sqrMagnitude;
+            if (distance > bestDistance || (distance == bestDistance && depth >= bestDepth)) continue;
+            if (isEligible != null && !isEligible(point)) continue;
+            nearest = point;
+            bestDistance = distance;
+            bestDepth = depth;
+        }
+        return nearest;
+    }
+
+    public void ShowSnapIndicator(SnapPoint point, bool locked = false)
+    {
+        if (point == null)
+        {
+            if (snapIndicator != null) snapIndicator.enabled = false;
+            return;
+        }
+
+        if (snapIndicator == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) shader = Shader.Find("Sprites/Default");
+            if (shader == null) return;
+            snapIndicatorMaterial = new Material(shader);
+            var indicator = new GameObject("Road Snap Indicator");
+            indicator.transform.SetParent(transform, false);
+            snapIndicator = indicator.AddComponent<LineRenderer>();
+            snapIndicator.sharedMaterial = snapIndicatorMaterial;
+            snapIndicator.widthMultiplier = 0.035f;
+            snapIndicator.positionCount = 7;
+        }
+
+        Color color = locked ? new Color(0.15f, 1f, 0.4f) : new Color(0.1f, 0.85f, 1f);
+        if (snapIndicatorMaterial.HasProperty("_BaseColor"))
+            snapIndicatorMaterial.SetColor("_BaseColor", color);
+        snapIndicator.startColor = snapIndicator.endColor = color;
+        Vector3 center = point.Position + Vector3.up * 0.09f;
+        Vector3 forward = Vector3.ProjectOnPlane(point.Forward, Vector3.up).normalized;
+        Vector3 right = Vector3.Cross(Vector3.up, forward);
+        Vector3 tip = center + forward * 0.4f;
+        Vector3 wing = center + forward * 0.18f;
+        snapIndicator.SetPosition(0, center - right * 0.18f);
+        snapIndicator.SetPosition(1, center + right * 0.18f);
+        snapIndicator.SetPosition(2, center);
+        snapIndicator.SetPosition(3, tip);
+        snapIndicator.SetPosition(4, wing + right * 0.14f);
+        snapIndicator.SetPosition(5, tip);
+        snapIndicator.SetPosition(6, wing - right * 0.14f);
+        snapIndicator.enabled = true;
+    }
+
+    private void OnDestroy()
+    {
+        if (snapIndicatorMaterial != null) Destroy(snapIndicatorMaterial);
+    }
 
     public bool CanAlignSnap(Vector3 approach, Vector3 alignedDirection)
     {
@@ -26,7 +100,7 @@ public class VRRoadBuilder : MonoBehaviour
         SnapPoint nearest = null;
         float radius = Mathf.Clamp(snapRadius, 0.5f, 1f);
         float best = radius * radius;
-        foreach (var point in FindObjectsOfType<SnapPoint>())
+        foreach (var point in SnapPoint.ActivePoints)
         {
             if (point == exclude || !point.Available || point.connectionType != SnapConnectionType.Roadway) continue;
             if (origin.HasValue)
@@ -246,14 +320,14 @@ public class VRRoadBuilder : MonoBehaviour
     }
 
     private GameObject SpawnSegment(GameObject prefab, Vector3 a, Vector3 b,
-        BuildableItem item, Transform parent, bool isGhost)
+        BuildableItem item, Transform parent, bool isGhost, int lanesCount = 1)
     {
         Vector3 start = a + Vector3.up * item.heightOffset;
         Vector3 end = b + Vector3.up * item.heightOffset;
         Vector3 direction = end - start;
         if (direction.sqrMagnitude < 0.0001f) return null;
 
-        GameObject seg = CreateSegmentModel(prefab, item, parent);
+        GameObject seg = CreateSegmentModel(prefab, item, parent, lanesCount);
         PositionSegment(seg, prefab, item, start, end);
 
         if (isGhost)
@@ -264,7 +338,7 @@ public class VRRoadBuilder : MonoBehaviour
         {
             var segment = seg.GetComponent<RoadSegment>();
             if (segment == null) segment = seg.AddComponent<RoadSegment>();
-            segment.Initialize(start, end, item.LanesCount);
+            segment.Initialize(start, end, lanesCount);
             foreach (var r in seg.GetComponentsInChildren<MeshRenderer>())
                 if (r.gameObject.GetComponent<Collider>() == null)
                     r.gameObject.AddComponent<MeshCollider>();
@@ -272,9 +346,9 @@ public class VRRoadBuilder : MonoBehaviour
         return seg;
     }
 
-    private GameObject CreateSegmentModel(GameObject prefab, BuildableItem item, Transform parent)
+    private GameObject CreateSegmentModel(GameObject prefab, BuildableItem item, Transform parent, int lanesCount)
     {
-        if (item.LanesCount == 1 || !TryGetSegmentBounds(prefab, out Bounds bounds))
+        if (lanesCount == 1 || !TryGetSegmentBounds(prefab, out Bounds bounds))
             return Instantiate(prefab, Vector3.zero, Quaternion.identity, parent);
 
         // Repeat the single-lane geometry symmetrically about the shared snap axis.
@@ -282,12 +356,12 @@ public class VRRoadBuilder : MonoBehaviour
         root.transform.SetParent(parent, false);
         bool alongX = item.segmentAxis == SegmentAxis.X;
         Vector3 laneSpacing = alongX ? Vector3.forward * bounds.size.z : Vector3.right * bounds.size.x;
-        for (int i = 0; i < item.LanesCount; i++)
+        for (int i = 0; i < lanesCount; i++)
         {
             GameObject lane = Instantiate(prefab, root.transform, false);
             lane.transform.localRotation = Quaternion.identity;
             lane.transform.localScale = Vector3.one;
-            lane.transform.localPosition = laneSpacing * (i - (item.LanesCount - 1) * 0.5f);
+            lane.transform.localPosition = laneSpacing * (i - (lanesCount - 1) * 0.5f);
         }
         return root;
     }
@@ -340,15 +414,16 @@ public class VRRoadBuilder : MonoBehaviour
 
     }
 
-    public void DrawStretchGhost(Vector3 start, Vector3 end, BuildableItem item)
+    public void DrawStretchGhost(Vector3 start, Vector3 end, BuildableItem item, int lanesCount)
     {
         GameObject prefab = item.ghostPrefab != null ? item.ghostPrefab : item.finalPrefab;
         if (prefab == null) return;
-        if (stretchGhost == null || stretchGhostItem != item)
+        if (stretchGhost == null || stretchGhostItem != item || stretchGhostLanes != lanesCount)
         {
             ClearGhostRoad();
             ghostContainer = new GameObject("[GHOST_STRUCTURE]");
-            stretchGhost = SpawnSegment(prefab, start, end, item, ghostContainer.transform, true);
+            stretchGhost = SpawnSegment(prefab, start, end, item, ghostContainer.transform, true, lanesCount);
+            stretchGhostLanes = lanesCount;
             stretchGhostItem = item;
             return;
         }
@@ -394,7 +469,7 @@ public class VRRoadBuilder : MonoBehaviour
     }
 
     public void BuildFinalRoad(List<Vector3> points, BuildableItem item,
-        SnapPoint startTarget = null, SnapPoint endTarget = null)
+        SnapPoint startTarget = null, SnapPoint endTarget = null, int lanesCount = 1)
     {
         ClearGhostRoad();
         if (points.Count < 2 || item.finalPrefab == null) return;
@@ -416,7 +491,7 @@ public class VRRoadBuilder : MonoBehaviour
         {
             if (item.singleSpan) i = points.Count - 1;
             GameObject built = SpawnSegment(item.finalPrefab, points[item.singleSpan ? 0 : i - 1],
-                points[i], item, container.transform, false);
+                points[i], item, container.transform, false, lanesCount);
             if (built == null) continue;
             var segment = built.GetComponent<RoadSegment>();
             if (segment.StartPoint.Connect(previous))
@@ -456,6 +531,7 @@ public class VRRoadBuilder : MonoBehaviour
         ghostContainer = null;
         stretchGhost = null;
         stretchGhostItem = null;
+        ShowSnapIndicator(null);
     }
 
     public float DistanceToNearestRoad(Vector3 position)

@@ -34,8 +34,6 @@ public class BuildableItem : ScriptableObject
     public bool sampleDeckEnds;
     public Vector3 segmentStartLocal;
     public Vector3 segmentEndLocal;
-    [SerializeField, Range(1, 3)] private int lanesCount = 1;
-    public int LanesCount => Mathf.Clamp(lanesCount, 1, 3);
     public bool stretchWithController;
     public float stepDistance = 2.8f;
     public float heightOffset = 0.04f;
