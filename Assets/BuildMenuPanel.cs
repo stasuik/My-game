@@ -450,7 +450,18 @@ public class BuildMenuPanel : MonoBehaviour
         {
             if (it == null || it.ResolvedCategory != category) continue;
             string label = string.IsNullOrEmpty(it.itemName) ? it.name : it.itemName;
-            list.Add(new Entry { label = label, iconKey = IconKey(label), item = it });
+            var entry = new Entry { label = label, iconKey = IconKey(label), item = it };
+            if (it.stretchWithController && it.LanesCount > 1)
+            {
+                int previous = list.FindLastIndex(e => e.item.finalPrefab == it.finalPrefab &&
+                    e.item.stretchWithController && e.item.LanesCount < it.LanesCount);
+                if (previous >= 0)
+                {
+                    list.Insert(previous + 1, entry);
+                    continue;
+                }
+            }
+            list.Add(entry);
         }
         return list;
     }
