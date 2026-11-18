@@ -12,6 +12,7 @@ public class VRRoadBuilder : MonoBehaviour
     [Range(0f, 90f)] public float maxSnapTurnAngle = 30f;
     private GameObject ghostContainer;
     private GameObject stretchGhost;
+    private RoadArc arcGhost;
     private BuildableItem stretchGhostItem;
     private int stretchGhostLanes;
 
@@ -212,13 +213,13 @@ public class VRRoadBuilder : MonoBehaviour
 
     // Mesh bounds are transformed into prefab-root space, so nested meshes and
     // non-centred pivots do not change the joint positions.
-    private bool TryGetSegmentBounds(GameObject prefab, out Bounds bounds)
+    private bool TryGetSegmentBounds(GameObject prefab, BuildableItem item, out Bounds bounds)
     {
         bounds = new Bounds();
         bool found = false;
         foreach (var filter in prefab.GetComponentsInChildren<MeshFilter>())
         {
-            if (filter.sharedMesh == null) continue;
+            if (filter.sharedMesh == null || !IsDeckMesh(filter, item)) continue;
             Bounds mesh = filter.sharedMesh.bounds;
             Matrix4x4 toRoot = prefab.transform.worldToLocalMatrix * filter.transform.localToWorldMatrix;
             for (int x = -1; x <= 1; x += 2)
@@ -231,90 +232,103 @@ public class VRRoadBuilder : MonoBehaviour
                         else bounds.Encapsulate(local);
                     }
         }
-        return found && (bounds.size.x > 0.0001f || bounds.size.z > 0.0001f);
+        return found && bounds.size[item.LongitudinalAxis] > 0.0001f;
     }
 
-    private readonly Dictionary<GameObject, (Vector3 start, Vector3 end)> deckEnds =
-        new Dictionary<GameObject, (Vector3 start, Vector3 end)>();
-
-    private (Vector3 start, Vector3 end) GetDeckEnds(GameObject prefab, Bounds bounds)
+    private static bool IsDeckMesh(MeshFilter filter, BuildableItem item)
     {
-        if (deckEnds.TryGetValue(prefab, out var ends)) return ends;
+        return string.IsNullOrEmpty(item.deckMeshObject) || filter.name == item.deckMeshObject ||
+            filter.sharedMesh.name == item.deckMeshObject;
+    }
 
-        // The bridge deck reaches farther along Z than the rails. Sample only
-        // vertices on the two terminal cross sections, excluding side geometry.
-        var start = new List<Vector3>();
-        var end = new List<Vector3>();
-        var vertices = new List<Vector3>();
-        float minZ = float.PositiveInfinity;
-        float maxZ = float.NegativeInfinity;
-        foreach (var filter in prefab.GetComponentsInChildren<MeshFilter>())
+    private readonly Dictionary<(GameObject, BuildableItem), (Vector3 start, Vector3 end)> deckEnds =
+        new Dictionary<(GameObject, BuildableItem), (Vector3 start, Vector3 end)>();
+
+    private (Vector3 start, Vector3 end) GetDeckEnds(GameObject prefab, BuildableItem item, Bounds bounds)
+    {
+        var key = (prefab, item);
+        if (deckEnds.TryGetValue(key, out var ends)) return ends;
+
+        int along = item.LongitudinalAxis;
+        Vector3 localUp = Quaternion.Inverse(Quaternion.Euler(GetRotationOffset(item))) * Vector3.up;
+        int up = Mathf.Abs(localUp.y) > Mathf.Abs(localUp.z) ? 1 : 2;
+        if (up == along) up = along == 1 ? 2 : 1;
+        int across = 3 - along - up;
+
+        Vector3 start = bounds.center;
+        Vector3 end = bounds.center;
+        start[up] = end[up] = localUp[up] >= 0 ? bounds.max[up] : bounds.min[up];
+        start[along] = bounds.min[along];
+        end[along] = bounds.max[along];
+
+        if (item.useCustomSegmentEnds && prefab == item.finalPrefab)
+            ends = (item.segmentStartLocal, item.segmentEndLocal);
+        else if (item.sampleDeckEnds)
         {
-            Mesh mesh = filter.sharedMesh;
-            if (mesh == null || !mesh.isReadable) continue;
-            Matrix4x4 toRoot = prefab.transform.worldToLocalMatrix * filter.transform.localToWorldMatrix;
-            foreach (Vector3 vertex in mesh.vertices)
+            var vertices = new List<Vector3>();
+            foreach (var filter in prefab.GetComponentsInChildren<MeshFilter>())
             {
-                Vector3 point = toRoot.MultiplyPoint3x4(vertex);
-                vertices.Add(point);
-                minZ = Mathf.Min(minZ, point.z);
-                maxZ = Mathf.Max(maxZ, point.z);
+                Mesh mesh = filter.sharedMesh;
+                if (mesh == null || !mesh.isReadable || !IsDeckMesh(filter, item)) continue;
+                Matrix4x4 toRoot = prefab.transform.worldToLocalMatrix * filter.transform.localToWorldMatrix;
+                foreach (Vector3 vertex in mesh.vertices)
+                    vertices.Add(toRoot.MultiplyPoint3x4(vertex));
             }
-        }
 
-        if (vertices.Count == 0)
-        {
-            minZ = bounds.min.z;
-            maxZ = bounds.max.z;
+            if (vertices.Count > 0)
+            {
+                float min = float.PositiveInfinity, max = float.NegativeInfinity;
+                foreach (Vector3 vertex in vertices)
+                {
+                    min = Mathf.Min(min, vertex[along]);
+                    max = Mathf.Max(max, vertex[along]);
+                }
+                start[along] = min;
+                end[along] = max;
+                float tolerance = (max - min) * 0.0001f;
+                start = GetDeckCenter(vertices, start, along, across, up, localUp[up], tolerance, item.useUpperDeckEdge);
+                end = GetDeckCenter(vertices, end, along, across, up, localUp[up], tolerance, item.useUpperDeckEdge);
+            }
+            ends = (start, end);
         }
-        float tolerance = (maxZ - minZ) * 0.0001f;
-        foreach (Vector3 point in vertices)
-        {
-            if (point.z - minZ <= tolerance) start.Add(point);
-            if (maxZ - point.z <= tolerance) end.Add(point);
-        }
-        ends = (GetDeckCenter(start, bounds, minZ), GetDeckCenter(end, bounds, maxZ));
-        // Both bridge cross sections share the same profile. Keep the axis
-        // parallel to Z so stretching preserves the transverse profile.
-        Vector3 center = (ends.start + ends.end) * 0.5f;
-        ends = (new Vector3(center.x, center.y, minZ),
-            new Vector3(center.x, center.y, maxZ));
-        deckEnds.Add(prefab, ends);
+        else ends = (start, end);
+
+        deckEnds.Add(key, ends);
         return ends;
     }
 
-    private static Vector3 GetDeckCenter(List<Vector3> section, Bounds bounds, float z)
+    private static Vector3 GetDeckCenter(List<Vector3> vertices, Vector3 point,
+        int along, int across, int up, float upSign, float tolerance, bool upperEdge)
     {
-        if (section.Count == 0) return new Vector3(bounds.center.x, bounds.center.y, z);
-        float minX = section[0].x;
-        float maxX = minX;
-        foreach (Vector3 point in section)
+        float left = float.PositiveInfinity, right = float.NegativeInfinity;
+        foreach (Vector3 vertex in vertices)
         {
-            minX = Mathf.Min(minX, point.x);
-            maxX = Mathf.Max(maxX, point.x);
+            if (Mathf.Abs(vertex[along] - point[along]) > tolerance) continue;
+            left = Mathf.Min(left, vertex[across]);
+            right = Mathf.Max(right, vertex[across]);
         }
-        float centerX = (minX + maxX) * 0.5f;
-        float middleWidth = (maxX - minX) * 0.25f;
-        float deckHeight = float.PositiveInfinity;
-        foreach (Vector3 point in section)
-            if (Mathf.Abs(point.x - centerX) <= middleWidth)
-                deckHeight = Mathf.Min(deckHeight, point.y);
-        if (float.IsPositiveInfinity(deckHeight)) deckHeight = bounds.center.y;
-        return new Vector3(centerX, deckHeight, z);
+        if (float.IsPositiveInfinity(left)) return point;
+
+        point[across] = (left + right) * 0.5f;
+        float height = upperEdge ? float.NegativeInfinity : float.PositiveInfinity;
+        foreach (Vector3 vertex in vertices)
+        {
+            if (Mathf.Abs(vertex[along] - point[along]) > tolerance ||
+                Mathf.Abs(vertex[across] - point[across]) > (right - left) * 0.25f) continue;
+            height = upperEdge ? Mathf.Max(height, vertex[up] * upSign) : Mathf.Min(height, vertex[up] * upSign);
+        }
+        if (!float.IsInfinity(height)) point[up] = height * upSign;
+        return point;
     }
 
     public float GetSegmentLength(BuildableItem item)
     {
-        if (item != null && item.finalPrefab != null && TryGetSegmentBounds(item.finalPrefab, out Bounds bounds))
+        if (item != null && item.finalPrefab != null &&
+            TryGetSegmentBounds(item.finalPrefab, item, out Bounds bounds))
         {
-            Vector3 scale = item.finalPrefab.transform.localScale;
-            if (item.useCustomSegmentEnds)
-            {
-                Vector3 delta = item.segmentEndLocal - item.segmentStartLocal;
-                float customLength = item.segmentAxis == SegmentAxis.X ? Mathf.Abs(delta.x * scale.x) : Mathf.Abs(delta.z * scale.z);
-                if (customLength > 0.0001f) return customLength;
-            }
-            return item.segmentAxis == SegmentAxis.X ? Mathf.Abs(bounds.size.x * scale.x) : Mathf.Abs(bounds.size.z * scale.z);
+            var ends = GetDeckEnds(item.finalPrefab, item, bounds);
+            return Mathf.Max(0.01f,
+                Vector3.Scale(ends.end - ends.start, item.finalPrefab.transform.localScale).magnitude);
         }
         return Mathf.Max(item != null ? item.stepDistance : 1f, 0.01f);
     }
@@ -328,6 +342,11 @@ public class VRRoadBuilder : MonoBehaviour
         if (direction.sqrMagnitude < 0.0001f) return null;
 
         GameObject seg = CreateSegmentModel(prefab, item, parent, lanesCount);
+        if (!string.IsNullOrEmpty(item.hiddenMeshObject))
+            foreach (var filter in seg.GetComponentsInChildren<MeshFilter>())
+                if (filter.gameObject != seg && filter.name == item.hiddenMeshObject)
+                    filter.gameObject.SetActive(false);
+
         PositionSegment(seg, prefab, item, start, end);
 
         if (isGhost)
@@ -348,14 +367,15 @@ public class VRRoadBuilder : MonoBehaviour
 
     private GameObject CreateSegmentModel(GameObject prefab, BuildableItem item, Transform parent, int lanesCount)
     {
-        if (lanesCount == 1 || !TryGetSegmentBounds(prefab, out Bounds bounds))
+        if (lanesCount == 1 || !TryGetSegmentBounds(prefab, item, out Bounds bounds))
             return Instantiate(prefab, Vector3.zero, Quaternion.identity, parent);
 
         // Repeat the single-lane geometry symmetrically about the shared snap axis.
         var root = new GameObject(prefab.name);
         root.transform.SetParent(parent, false);
-        bool alongX = item.segmentAxis == SegmentAxis.X;
-        Vector3 laneSpacing = alongX ? Vector3.forward * bounds.size.z : Vector3.right * bounds.size.x;
+        Vector3 laneSpacing = Vector3.zero;
+        int across = GetTransverseAxis(item);
+        laneSpacing[across] = bounds.size[across];
         for (int i = 0; i < lanesCount; i++)
         {
             GameObject lane = Instantiate(prefab, root.transform, false);
@@ -370,40 +390,26 @@ public class VRRoadBuilder : MonoBehaviour
         Vector3 start, Vector3 end)
     {
         Vector3 direction = end - start;
-        if (TryGetSegmentBounds(prefab, out Bounds bounds))
+        if (TryGetSegmentBounds(prefab, item, out Bounds bounds))
         {
             Vector3 scale = prefab.transform.localScale;
-            bool xAxis = item.segmentAxis == SegmentAxis.X;
-            Vector3 axis = xAxis ? Vector3.right : Vector3.forward;
+            var (localStart, localEnd) = GetDeckEnds(prefab, item, bounds);
+            int along = item.LongitudinalAxis;
             Quaternion offset = Quaternion.Euler(GetRotationOffset(item));
-            Vector3 modelAxis = offset * axis;
-            if (Vector3.Dot(modelAxis, Vector3.forward) < -0.001f)
-                modelAxis = -modelAxis;
-            // Rotate the prefab's longitudinal axis onto the construction direction.
-            seg.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up) *
-                Quaternion.FromToRotation(modelAxis, Vector3.forward) * offset;
-            Vector3 localStart = bounds.center;
-            Vector3 localEnd = bounds.center;
-            if (xAxis) { localStart.x = bounds.min.x; localEnd.x = bounds.max.x; }
-            else { localStart.z = bounds.min.z; localEnd.z = bounds.max.z; }
-            if (item.sampleDeckEnds && !xAxis)
-                (localStart, localEnd) = GetDeckEnds(prefab, bounds);
-            else
-                localStart.y = localEnd.y = bounds.max.y;
-            // Explicit points belong to the final model, not a potentially different ghost mesh.
-            if (item.useCustomSegmentEnds && prefab == item.finalPrefab)
+            Vector3 delta = Vector3.Scale(localEnd - localStart, scale);
+            if (Vector3.Dot(offset * delta, Vector3.forward) < -0.001f)
             {
-                localStart = item.segmentStartLocal;
-                localEnd = item.segmentEndLocal;
+                (localStart, localEnd) = (localEnd, localStart);
+                delta = -delta;
             }
-            float length = xAxis ? Mathf.Abs((localEnd.x - localStart.x) * scale.x) : Mathf.Abs((localEnd.z - localStart.z) * scale.z);
-            if (xAxis) scale.x *= direction.magnitude / Mathf.Max(length, 0.0001f);
-            else scale.z *= direction.magnitude / Mathf.Max(length, 0.0001f);
+
+            float transverseSquared = Mathf.Max(0f, delta.sqrMagnitude - delta[along] * delta[along]);
+            float axialLength = Mathf.Sqrt(Mathf.Max(0.000001f, direction.sqrMagnitude - transverseSquared));
+            scale[along] *= axialLength / Mathf.Max(Mathf.Abs(delta[along]), 0.0001f);
+            Vector3 modelForward = offset * Vector3.Scale(localEnd - localStart, scale);
+            seg.transform.rotation = Quaternion.LookRotation(direction, Vector3.up) *
+                Quaternion.Inverse(Quaternion.LookRotation(modelForward, Vector3.up)) * offset;
             seg.transform.localScale = scale;
-            if (Vector3.Dot(seg.transform.TransformVector(localEnd - localStart), direction) < 0f)
-            {
-                Vector3 tmp = localStart; localStart = localEnd; localEnd = tmp;
-            }
             seg.transform.position += start - seg.transform.TransformPoint(localStart);
         }
         else
@@ -412,6 +418,69 @@ public class VRRoadBuilder : MonoBehaviour
             Debug.LogWarning("No usable mesh bounds for " + prefab.name, prefab);
         }
 
+    }
+
+    public float GetLaneWidth(BuildableItem item)
+    {
+        GameObject prefab = item.finalPrefab;
+        if (prefab == null || !TryGetSegmentBounds(prefab, item, out Bounds bounds)) return 0f;
+        int across = GetTransverseAxis(item);
+        return Mathf.Abs(bounds.size[across] * prefab.transform.localScale[across]);
+    }
+
+    private int GetTransverseAxis(BuildableItem item)
+    {
+        Vector3 right = Quaternion.Inverse(Quaternion.Euler(GetRotationOffset(item))) * Vector3.right;
+        int axis = -1;
+        for (int i = 0; i < 3; i++)
+            if (i != item.LongitudinalAxis && (axis < 0 || Mathf.Abs(right[i]) > Mathf.Abs(right[axis])))
+                axis = i;
+        // X-long assets map to forward with a yaw, moving their horizontal Z to world X.
+        if (Mathf.Abs(right[axis]) < 0.01f)
+        {
+            Vector3 up = Quaternion.Inverse(Quaternion.Euler(GetRotationOffset(item))) * Vector3.up;
+            axis = Mathf.Abs(up.y) > Mathf.Abs(up.z) ? 2 : 1;
+        }
+        return axis;
+    }
+
+    public void PlaceRoadArc(Vector3 origin, Vector3 forward, float length, float angle,
+        BuildableItem item, int lanes, float laneWidth, SnapPoint startTarget, bool preview)
+    {
+        GameObject prefab = preview && item.ghostPrefab != null ? item.ghostPrefab : item.finalPrefab;
+        if (prefab == null) return;
+        Vector3 start = origin + Vector3.up * item.heightOffset;
+        if (!preview)
+        {
+            ClearGhostRoad();
+            if (startTarget != null && (!startTarget.Available || !startTarget.MatchesEnd(start, forward)))
+                return;
+        }
+
+        RoadArc arc = preview ? arcGhost : null;
+        if (arc == null)
+        {
+            if (preview) ClearGhostRoad();
+            var root = new GameObject(preview ? "[GHOST_ROAD_ARC]" : "Built_" + item.itemName + "_Arc",
+                typeof(MeshFilter), typeof(MeshRenderer), typeof(RoadArc));
+            arc = root.GetComponent<RoadArc>();
+            var source = prefab.GetComponentInChildren<MeshRenderer>();
+            if (source != null) root.GetComponent<MeshRenderer>().sharedMaterial = source.sharedMaterial;
+            if (preview)
+            {
+                arcGhost = arc;
+                ghostContainer = root;
+            }
+        }
+
+        arc.Build(start, forward, length, angle, laneWidth, lanes, out Vector3 end, out Vector3 tangent);
+        if (preview) return;
+
+        var segment = arc.gameObject.AddComponent<RoadSegment>();
+        segment.Initialize(start, end, forward, tangent, lanes);
+        arc.gameObject.AddComponent<MeshCollider>().sharedMesh = arc.GetComponent<MeshFilter>().sharedMesh;
+        if (segment.StartPoint.Connect(startTarget))
+            segment.CloseSeam(segment.StartPoint, startTarget);
     }
 
     public void DrawStretchGhost(Vector3 start, Vector3 end, BuildableItem item, int lanesCount)
@@ -530,6 +599,7 @@ public class VRRoadBuilder : MonoBehaviour
         if (ghostContainer != null) Destroy(ghostContainer);
         ghostContainer = null;
         stretchGhost = null;
+        arcGhost = null;
         stretchGhostItem = null;
         ShowSnapIndicator(null);
     }

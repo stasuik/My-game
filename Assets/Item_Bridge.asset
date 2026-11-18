@@ -30,3 +30,4 @@ MonoBehaviour:
   pillarMaterial: {fileID: 0}
   singleSpan: 1
   sampleDeckEnds: 1
+  deckMeshObject: Куб

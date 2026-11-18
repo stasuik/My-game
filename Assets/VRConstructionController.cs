@@ -27,11 +27,17 @@ public class VRConstructionController : MonoBehaviour
     private const float MinStretchLength = 2f;
     private const float MaxStretchLength = 30f;
     private const float StretchStep = 0.1f;
+    private const float TurnDeadZone = 0.08f;
+    private const float TurnDegreesPerMeter = 180f;
+    private const float MaxTurnDegrees = 90f;
     private Vector3 stretchHandOrigin;
     private Vector3 stretchForward;
     private float stretchInitialLength;
     private BuildableItem stretchItem;
     private int stretchLanes = 1;
+    private float stretchLaneWidth;
+    private float stretchAngle;
+    private float stretchLength;
     private SnapPoint startSnap;
     private SnapPoint endSnap;
     private GameObject singleGhost;
@@ -151,6 +157,7 @@ public class VRConstructionController : MonoBehaviour
                     {
                         stretchItem = currentItem;
                         stretchLanes = buildManager.RoadLanes;
+                        stretchLaneWidth = roadBuilder.GetLaneWidth(currentItem);
                         stretchHandOrigin = handTransform.position;
                         stretchForward = GetStretchForward(startSnap);
                         stretchInitialLength = Mathf.Clamp(roadBuilder.GetSegmentLength(currentItem),
@@ -270,12 +277,18 @@ public class VRConstructionController : MonoBehaviour
             {
                 currentState = ConstructionState.Idle;
 
-                if (buildPoints.Count > 0 &&
-                    Vector3.Distance(buildPoints[buildPoints.Count - 1], lastValidHitPoint) >= 0.01f)
-                    buildPoints.Add(lastValidHitPoint);
+                if (stretchItem != null && stretchAngle != 0f)
+                    roadBuilder.PlaceRoadArc(buildPoints[0], stretchForward, stretchLength, stretchAngle,
+                        stretchItem, stretchLanes, stretchLaneWidth, startSnap, false);
+                else
+                {
+                    if (buildPoints.Count > 0 &&
+                        Vector3.Distance(buildPoints[buildPoints.Count - 1], lastValidHitPoint) >= 0.01f)
+                        buildPoints.Add(lastValidHitPoint);
 
-                roadBuilder.BuildFinalRoad(buildPoints, currentItem, startSnap, endSnap,
-                    stretchItem != null ? stretchLanes : 1);
+                    roadBuilder.BuildFinalRoad(buildPoints, currentItem, startSnap, endSnap,
+                        stretchItem != null ? stretchLanes : 1);
+                }
                 stretchItem = null;
                 startSnap = endSnap = null;
                 buildPoints.Clear();
@@ -319,6 +332,28 @@ public class VRConstructionController : MonoBehaviour
                 origin, alignStart ? startSnap.Forward : Vector3.zero);
         if (target != null)
             cursor = target.Position - offset;
+        if (target == null && alignStart && item.singleSpan)
+        {
+            // Aim at the continuation of the deck, including above the terrain.
+            Vector3 axis = startSnap.Forward;
+            Vector3 delta = ray.origin - origin;
+            float alignment = Vector3.Dot(ray.direction, axis);
+            float denominator = 1f - alignment * alignment;
+            if (denominator > 0.0001f)
+            {
+                float distanceAlong = (Vector3.Dot(delta, axis) -
+                    alignment * Vector3.Dot(delta, ray.direction)) / denominator;
+                Vector3 pointOnAxis = origin + axis * distanceAlong;
+                float rayDepth = Vector3.Dot(pointOnAxis - ray.origin, ray.direction);
+                float miss = Vector3.Distance(pointOnAxis, ray.GetPoint(rayDepth));
+                if (distanceAlong >= 0.1f && rayDepth > 0f &&
+                    rayDepth <= GetSnapReach(ray, hitGround, cursor) && miss <= roadBuilder.snapRadius)
+                {
+                    cursor = pointOnAxis - offset;
+                    return true;
+                }
+            }
+        }
         return target != null || hitGround;
     }
 
@@ -340,8 +375,34 @@ public class VRConstructionController : MonoBehaviour
 
     private void UpdateStretch(bool preview)
     {
-        float displacement = Vector3.Dot(handTransform.position - stretchHandOrigin, stretchForward);
+        Vector3 movement = handTransform.position - stretchHandOrigin;
+        float displacement = Vector3.Dot(movement, stretchForward);
         float length = Mathf.Clamp(stretchInitialLength + displacement, MinStretchLength, MaxStretchLength);
+        stretchLength = preview ? length : RoundStretchLength(length);
+
+        Vector3 right = Vector3.Cross(Vector3.up, stretchForward).normalized;
+        float lateral = Vector3.Dot(movement, right);
+        float steering = Mathf.Sign(lateral) * Mathf.Max(0f, Mathf.Abs(lateral) - TurnDeadZone);
+        // Leave a positive inner radius even for the widest road.
+        float minimumRadius = stretchLaneWidth * stretchLanes * 0.75f;
+        float maxAngle = Mathf.Min(MaxTurnDegrees, stretchLength /
+            Mathf.Max(minimumRadius, 0.01f) * Mathf.Rad2Deg);
+        stretchAngle = stretchLaneWidth > 0f ?
+            Mathf.Clamp(steering * TurnDegreesPerMeter, -maxAngle, maxAngle) : 0f;
+        if (Mathf.Abs(stretchAngle) < 0.5f) stretchAngle = 0f;
+
+        if (stretchAngle != 0f)
+        {
+            endSnap = null;
+            if (preview)
+            {
+                roadBuilder.PlaceRoadArc(buildPoints[0], stretchForward, stretchLength, stretchAngle,
+                    stretchItem, stretchLanes, stretchLaneWidth, startSnap, true);
+                roadBuilder.ShowSnapIndicator(startSnap, true);
+            }
+            return;
+        }
+
         Vector3 offset = Vector3.up * stretchItem.heightOffset;
         Vector3 origin = buildPoints[0];
         Vector3 worldStart = origin + offset;
