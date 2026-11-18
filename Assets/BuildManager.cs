@@ -7,6 +7,13 @@ public class BuildManager : MonoBehaviour
     [Header("Каталог всех объектов")]
     public List<BuildableItem> catalog = new List<BuildableItem>();
 
+    public int RoadLanes { get; private set; } = 1;
+
+    public void SetRoadLanes(int count)
+    {
+        RoadLanes = Mathf.Clamp(count, 1, 3);
+    }
+
     private int currentIndex = 0;
 
     public BuildableItem CurrentItem
