@@ -20,6 +20,8 @@ namespace RoadBuilder.Core.History
         public bool CanUndo => _undoStack.Count > 0;
         public bool CanRedo => _redoStack.Count > 0;
 
+        internal IEnumerable<IReversibleCommand> RedoCommands => _redoStack;
+
         public HistoryStack(int maxCapacity = DefaultCapacity)
         {
             if (maxCapacity <= 0)

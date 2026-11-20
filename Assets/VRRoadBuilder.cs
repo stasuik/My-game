@@ -1,3 +1,4 @@
+using RoadBuilder.Core.History;
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -481,6 +482,8 @@ public class VRRoadBuilder : MonoBehaviour
         arc.gameObject.AddComponent<MeshCollider>().sharedMesh = arc.GetComponent<MeshFilter>().sharedMesh;
         if (segment.StartPoint.Connect(startTarget))
             segment.CloseSeam(segment.StartPoint, startTarget);
+
+        UndoRedoManager.Instance.RegisterCommand(new SpawnObjectCommand(arc.gameObject, item.itemName));
     }
 
     public void DrawStretchGhost(Vector3 start, Vector3 end, BuildableItem item, int lanesCount)
@@ -567,17 +570,21 @@ public class VRRoadBuilder : MonoBehaviour
                 segment.CloseSeam(segment.StartPoint, previous);
             previous = segment.EndPoint;
         }
-        if (previous != null && previous != startTarget && previous.Connect(endTarget))
+        if (previous == startTarget)
+        {
+            Destroy(container);
+            return;
+        }
+
+        if (previous.Connect(endTarget))
             previous.GetComponentInParent<RoadSegment>().CloseSeam(previous, endTarget);
 
         if (item.singleSpan)
         {
             if (!item.snapToTerrain && item.generatePillars)
                 SpawnPillarsAlongSpan(points[0], points[points.Count - 1], container.transform, false, item);
-            return;
         }
-
-        if (!item.snapToTerrain && item.generatePillars)
+        else if (!item.snapToTerrain && item.generatePillars)
         {
             for (int i = 1; i < points.Count; i++)
             {
@@ -585,6 +592,7 @@ public class VRRoadBuilder : MonoBehaviour
                 SpawnPillar(pos, container.transform, false, item);
             }
         }
+        UndoRedoManager.Instance.RegisterCommand(new SpawnObjectCommand(container, item.itemName));
     }
 
     public void SetGhostColor(Color color)

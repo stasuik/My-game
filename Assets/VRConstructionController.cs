@@ -1,3 +1,4 @@
+using RoadBuilder.Core.History;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -91,6 +92,19 @@ public class VRConstructionController : MonoBehaviour
 
     private void Update()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        var keyboard = Keyboard.current;
+        if (keyboard != null && (keyboard.ctrlKey.isPressed || keyboard.leftMetaKey.isPressed ||
+                                 keyboard.rightMetaKey.isPressed))
+        {
+            if (keyboard.yKey.wasPressedThisFrame ||
+                (keyboard.shiftKey.isPressed && keyboard.zKey.wasPressedThisFrame))
+                UndoRedoManager.Instance.Redo();
+            else if (keyboard.zKey.wasPressedThisFrame)
+                UndoRedoManager.Instance.Undo();
+        }
+#endif
+
         if (buildManager == null || roadBuilder == null || buildManager.CurrentItem == null ||
             triggerAction == null || triggerAction.action == null || handTransform == null)
         {
@@ -491,7 +505,8 @@ public class VRConstructionController : MonoBehaviour
 
             spawnRotation *= Quaternion.Euler(0, singleRotationOffset, 0);
 
-            Instantiate(item.finalPrefab, spawnPoint, spawnRotation);
+            GameObject spawned = Instantiate(item.finalPrefab, spawnPoint, spawnRotation);
+            UndoRedoManager.Instance.RegisterCommand(new SpawnObjectCommand(spawned, item.itemName));
             singleRotationOffset = 0f;
             roadBuilder.ClearGhostRoad();
         }

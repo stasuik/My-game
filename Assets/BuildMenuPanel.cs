@@ -1,3 +1,4 @@
+using RoadBuilder.Core.History;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -80,6 +81,23 @@ public class BuildMenuPanel : MonoBehaviour
         Build(rt);
     }
 
+    void ApplyHistory(bool redo)
+    {
+        var history = UndoRedoManager.Instance;
+        if (redo ? !history.CanRedo : !history.CanUndo)
+        {
+            status.text = redo ? "Нечего повторять" : "Нечего отменять";
+            return;
+        }
+
+        string actionName = redo ? history.GetRedoActionName() : history.GetUndoActionName();
+        bool success = redo ? history.Redo() : history.Undo();
+        string result = success
+            ? (redo ? "Повторено: " : "Отменено: ")
+            : (redo ? "Не удалось повторить: " : "Не удалось отменить: ");
+        status.text = result + actionName;
+    }
+
     // ---------- сборка ----------
 
     void Build(RectTransform root)
@@ -87,8 +105,10 @@ public class BuildMenuPanel : MonoBehaviour
         AddImage(root, Cream, Rounded(), true);
 
         // шапка
-        Label(root, 20, 10, 470, 34, "Строительство дорог", 26, Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
-        crumb = Label(root, 20, 42, 470, 24, "Проезжая часть > Дорога", 17, Mute, TextAnchor.MiddleLeft);
+        Label(root, 20, 10, 330, 34, "Строительство дорог", 26, Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
+        crumb = Label(root, 20, 42, 330, 24, "Проезжая часть > Дорога", 17, Mute, TextAnchor.MiddleLeft);
+        MakeFlat(root, "Undo", W - 244, 13, 82, 44, "Отмена", 16, Ink, TileCol, Rounded(), () => ApplyHistory(false));
+        MakeFlat(root, "Redo", W - 154, 13, 82, 44, "Повтор", 16, Ink, TileCol, Rounded(), () => ApplyHistory(true));
         MakeFlat(root, "Close", W - 64, 13, 44, 44, "X", 20, Ink, TileCol, Circle(), () => menu.CloseMenu());
         AddImage(NewPlaced("HeaderLine", root, 0, HeaderH - 1, W, 1), Line, null, false);
 
