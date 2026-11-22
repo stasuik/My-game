@@ -6,6 +6,27 @@ using Core.History;
 
 namespace Tests.Editor
 {
+    internal class TestCommand : RoadBuilder.Core.History.IReversibleCommand
+    {
+        public string Description { get; }
+        public bool IsExecuted { get; private set; }
+        public TestCommand(string description)
+        {
+            Description = description;
+            IsExecuted = true;
+        }
+        public bool Execute()
+        {
+            IsExecuted = true;
+            return true;
+        }
+        public bool Undo()
+        {
+            IsExecuted = false;
+            return true;
+        }
+    }
+
     [TestFixture]
     public class BuildMenuPanelHistoryUITests
     {

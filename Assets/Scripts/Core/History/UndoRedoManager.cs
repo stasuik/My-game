@@ -97,6 +97,11 @@ namespace RoadBuilder.Core.History
             NotifyHistoryChanged();
         }
 
+        public void RecordAction(IReversibleCommand command)
+        {
+            RegisterCommand(command);
+        }
+
         public bool Undo()
         {
             if (!CanUndo)
@@ -185,4 +190,10 @@ namespace RoadBuilder.Core.History
             OnHistoryChanged?.Invoke(CanUndo, CanRedo);
         }
     }
+}
+
+namespace Core.History
+{
+    public class UndoRedoManager : RoadBuilder.Core.History.UndoRedoManager {}
+    public interface IReversibleCommand : RoadBuilder.Core.History.IReversibleCommand {}
 }
