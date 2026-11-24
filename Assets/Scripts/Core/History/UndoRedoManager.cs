@@ -101,15 +101,18 @@ namespace RoadBuilder.Core.History
         {
             if (!CanUndo)
             {
+                RoadBuilder.Core.Telemetry.UndoRedoTelemetryManager.Instance.TrackUndoFailedEmpty();
                 return false;
             }
 
             var command = _historyStack.PopUndo();
             if (command == null)
             {
+                RoadBuilder.Core.Telemetry.UndoRedoTelemetryManager.Instance.TrackUndoFailedEmpty();
                 return false;
             }
 
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             bool success = false;
             try
             {
@@ -119,10 +122,17 @@ namespace RoadBuilder.Core.History
             {
                 Debug.LogError($"[UndoRedoManager] Ошибка при отмене команды '{command.Description}': {ex.Message}");
             }
+            sw.Stop();
 
             if (success)
             {
                 OnCommandUndone?.Invoke(command);
+                RoadBuilder.Core.Telemetry.UndoRedoTelemetryManager.Instance.TrackUndoTriggered(
+                    command.Description,
+                    _historyStack.UndoCount,
+                    _historyStack.RedoCount,
+                    (float)sw.Elapsed.TotalMilliseconds
+                );
             }
 
             NotifyHistoryChanged();
@@ -133,15 +143,18 @@ namespace RoadBuilder.Core.History
         {
             if (!CanRedo)
             {
+                RoadBuilder.Core.Telemetry.UndoRedoTelemetryManager.Instance.TrackRedoFailedEmpty();
                 return false;
             }
 
             var command = _historyStack.PopRedo();
             if (command == null)
             {
+                RoadBuilder.Core.Telemetry.UndoRedoTelemetryManager.Instance.TrackRedoFailedEmpty();
                 return false;
             }
 
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             bool success = false;
             try
             {
@@ -151,10 +164,17 @@ namespace RoadBuilder.Core.History
             {
                 Debug.LogError($"[UndoRedoManager] Ошибка при повторе команды '{command.Description}': {ex.Message}");
             }
+            sw.Stop();
 
             if (success)
             {
                 OnCommandRedone?.Invoke(command);
+                RoadBuilder.Core.Telemetry.UndoRedoTelemetryManager.Instance.TrackRedoTriggered(
+                    command.Description,
+                    _historyStack.UndoCount,
+                    _historyStack.RedoCount,
+                    (float)sw.Elapsed.TotalMilliseconds
+                );
             }
 
             NotifyHistoryChanged();
