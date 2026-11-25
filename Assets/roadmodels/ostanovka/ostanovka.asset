@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: ostanovka
   m_EditorClassIdentifier: 
   itemName: "\u041E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0430"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: d82e43c9ff39f0c409912e9daff48aac, type: 3}
+  category: 0
   finalPrefab: {fileID: 919132149155446097, guid: 63e3a2c3bbbafe549acfcb68063df55e, type: 3}
   ghostPrefab: {fileID: 919132149155446097, guid: 63e3a2c3bbbafe549acfcb68063df55e, type: 3}
   isSplineType: 0

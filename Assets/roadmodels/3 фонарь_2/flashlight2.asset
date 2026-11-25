@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: flashlight2
   m_EditorClassIdentifier: 
   itemName: "\u0424\u043E\u043D\u0430\u0440\u044C 2"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: 0d3d108cc257d0546b76e76e335fe3fd, type: 3}
+  category: 0
   finalPrefab: {fileID: 5843523377415772452, guid: 4de5eb14f3e34cb44aaef5c664c326cd, type: 3}
   ghostPrefab: {fileID: 5843523377415772452, guid: 4de5eb14f3e34cb44aaef5c664c326cd, type: 3}
   isSplineType: 0

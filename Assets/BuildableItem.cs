@@ -1,20 +1,44 @@
 using UnityEngine;
 
+// В какую вкладку меню попадает объект. Auto: сплайновые (дорога, мост) идут в «Тип», остальные в «Объекты».
+public enum SegmentAxis { Z, X, Y }
+
+public enum BuildCategory
+{
+    Auto,
+    Roadway,   // вкладка «Тип»: проезжая часть
+    Roadside   // вкладка «Объекты»: придорожные объекты
+}
+
 [CreateAssetMenu(fileName = "New Buildable Item", menuName = "Construction/Buildable Item")]
 public class BuildableItem : ScriptableObject
 {
     public string itemName;
     public Sprite previewIcon;
 
+    [Header("Меню")]
+    public BuildCategory category = BuildCategory.Auto;
+
     [Header("Prefabs")]
     public GameObject finalPrefab;
     public GameObject ghostPrefab;
 
-    [Header("������ ����������")]
-    public bool isSplineType = false;       // true � ������� (������, ����), false � �������� � ���� ����� (���������)
-    public bool snapToTerrain = true;       // true � ��������� ������ �����, false � �������� �� ������ � ������� (��� ������)
+    [Header("Режим постройки")]
+    public bool isSplineType = false;       // true: протягивание (дорога, мост), false: ставится в одну точку
+    public bool snapToTerrain = true;       // true: ставится на землю, false: может висеть над землёй (мосты)
 
-    [Header("��������� ���� (������ ��� Spline)")]
+    [Header("Протягивание (только для Spline)")]
+    public SegmentAxis segmentAxis = SegmentAxis.Z;
+    [Tooltip("Optional connection locations in the final prefab's local coordinates.")]
+    public bool useCustomSegmentEnds = false;
+    public bool sampleDeckEnds;
+    public bool useUpperDeckEdge;
+    public string deckMeshObject;
+    public string hiddenMeshObject;
+    public int LongitudinalAxis => segmentAxis == SegmentAxis.Y ? 1 : segmentAxis == SegmentAxis.X ? 0 : 2;
+    public Vector3 segmentStartLocal;
+    public Vector3 segmentEndLocal;
+    public bool stretchWithController;
     public float stepDistance = 2.8f;
     public float heightOffset = 0.04f;
 
@@ -31,4 +55,13 @@ public class BuildableItem : ScriptableObject
     public float minPillarHeight = 1.5f;
     public Material pillarMaterial;
     public bool singleSpan = false;
+
+    public BuildCategory ResolvedCategory
+    {
+        get
+        {
+            if (category != BuildCategory.Auto) return category;
+            return isSplineType ? BuildCategory.Roadway : BuildCategory.Roadside;
+        }
+    }
 }
