@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public enum SnapConnectionType { Roadway }
@@ -5,6 +6,14 @@ public enum SnapConnectionType { Roadway }
 // Forward points outwards from the segment, towards a connecting segment.
 public class SnapPoint : MonoBehaviour
 {
+    private static readonly HashSet<SnapPoint> activePoints = new HashSet<SnapPoint>();
+    internal static IEnumerable<SnapPoint> ActivePoints => activePoints;
+
+    private void OnEnable()
+    {
+        activePoints.Add(this);
+    }
+
     public SnapConnectionType connectionType = SnapConnectionType.Roadway;
     public SnapPoint ConnectedTo { get; private set; }
     public Vector3 Position => transform.position;
@@ -37,6 +46,7 @@ public class SnapPoint : MonoBehaviour
 
     private void OnDisable()
     {
+        activePoints.Remove(this);
         if (ConnectedTo != null)
         {
             ConnectedTo.ConnectedTo = null;

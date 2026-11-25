@@ -15,14 +15,18 @@ MonoBehaviour:
   itemName: "\u0414\u043E\u0440\u043E\u0433\u0430 2"
   previewIcon: {fileID: 21300000, guid: 446444b925dd03246b7cc04c4cb43338, type: 3}
   category: 1
-  finalPrefab: {fileID: 9113518765569185467, guid: 57bf383c98887064a8b979b149b1a46f, type: 3}
-  ghostPrefab: {fileID: 9113518765569185467, guid: 57bf383c98887064a8b979b149b1a46f, type: 3}
+  finalPrefab: {fileID: 919132149155446097, guid: 650aa600ba3e05949b913cc96435132d, type: 3}
+  ghostPrefab: {fileID: 919132149155446097, guid: 650aa600ba3e05949b913cc96435132d, type: 3}
   isSplineType: 1
-  snapToTerrain: 0
+  stretchWithController: 1
+  segmentAxis: 1
+  sampleDeckEnds: 1
+  useUpperDeckEdge: 1
+  snapToTerrain: 1
   stepDistance: 2.8
   heightOffset: 0.04
-  rotationOffset: {x: 0, y: 0, z: 0}
-  requireRoadProximity: 1
+  rotationOffset: {x: -90, y: 0, z: 0}
+  requireRoadProximity: 0
   maxRoadDistance: 5
   generatePillars: 0
   pillarWidth: 0.6

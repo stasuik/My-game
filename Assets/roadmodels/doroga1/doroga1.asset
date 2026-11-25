@@ -18,6 +18,10 @@ MonoBehaviour:
   finalPrefab: {fileID: 919132149155446097, guid: 1be3cf4e16f19a24ca78fad9bbddbce0, type: 3}
   ghostPrefab: {fileID: 919132149155446097, guid: 1be3cf4e16f19a24ca78fad9bbddbce0, type: 3}
   isSplineType: 1
+  stretchWithController: 1
+  segmentAxis: 1
+  deckMeshObject: Cube
+  hiddenMeshObject: Plane
   snapToTerrain: 1
   stepDistance: 15
   heightOffset: 0.04

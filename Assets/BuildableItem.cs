@@ -1,7 +1,7 @@
 using UnityEngine;
 
 // В какую вкладку меню попадает объект. Auto: сплайновые (дорога, мост) идут в «Тип», остальные в «Объекты».
-public enum SegmentAxis { Z, X }
+public enum SegmentAxis { Z, X, Y }
 
 public enum BuildCategory
 {
@@ -32,10 +32,12 @@ public class BuildableItem : ScriptableObject
     [Tooltip("Optional connection locations in the final prefab's local coordinates.")]
     public bool useCustomSegmentEnds = false;
     public bool sampleDeckEnds;
+    public bool useUpperDeckEdge;
+    public string deckMeshObject;
+    public string hiddenMeshObject;
+    public int LongitudinalAxis => segmentAxis == SegmentAxis.Y ? 1 : segmentAxis == SegmentAxis.X ? 0 : 2;
     public Vector3 segmentStartLocal;
     public Vector3 segmentEndLocal;
-    [SerializeField, Range(1, 3)] private int lanesCount = 1;
-    public int LanesCount => Mathf.Clamp(lanesCount, 1, 3);
     public bool stretchWithController;
     public float stepDistance = 2.8f;
     public float heightOffset = 0.04f;

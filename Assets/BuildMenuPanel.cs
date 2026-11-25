@@ -1,3 +1,4 @@
+using RoadBuilder.Core.History;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -8,7 +9,7 @@ using UnityEngine.UI;
 /// Плитки вкладок «Тип» и «Объекты» создаются из BuildManager.catalog при первом открытии меню:
 /// каждый BuildableItem = одна плитка, клик по ней вызывает BuildManager.SetBuildMode(индекс в каталоге).
 /// Вкладка задаётся полем BuildableItem.category. Заполнить каталог: Construction > Sync Models To Menu.
-/// Параметры сегмента, настройки дороги и инструменты пока заглушки, пишут пояснение в строку статуса.
+/// Количество полос задаётся во вкладке «Сегмент».
 /// Вариант под VR: вкладки, шрифт от 19, кнопки от 44 единиц канваса.
 /// Иконки: BuildableItem.previewIcon, иначе спрайты Assets/Resources/UI/Icons/{ключ}.png (road, bridge, flyover, tunnel,
 /// parking, lamp, bin, bench, bus, sign, fence, move, trash, anchor). Пока их нет, рисуется кружок с буквой.
@@ -80,6 +81,23 @@ public class BuildMenuPanel : MonoBehaviour
         Build(rt);
     }
 
+    void ApplyHistory(bool redo)
+    {
+        var history = UndoRedoManager.Instance;
+        if (redo ? !history.CanRedo : !history.CanUndo)
+        {
+            status.text = redo ? "Нечего повторять" : "Нечего отменять";
+            return;
+        }
+
+        string actionName = redo ? history.GetRedoActionName() : history.GetUndoActionName();
+        bool success = redo ? history.Redo() : history.Undo();
+        string result = success
+            ? (redo ? "Повторено: " : "Отменено: ")
+            : (redo ? "Не удалось повторить: " : "Не удалось отменить: ");
+        status.text = result + actionName;
+    }
+
     // ---------- сборка ----------
 
     void Build(RectTransform root)
@@ -87,8 +105,10 @@ public class BuildMenuPanel : MonoBehaviour
         AddImage(root, Cream, Rounded(), true);
 
         // шапка
-        Label(root, 20, 10, 470, 34, "Строительство дорог", 26, Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
-        crumb = Label(root, 20, 42, 470, 24, "Проезжая часть > Дорога", 17, Mute, TextAnchor.MiddleLeft);
+        Label(root, 20, 10, 330, 34, "Строительство дорог", 26, Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
+        crumb = Label(root, 20, 42, 330, 24, "Проезжая часть > Дорога", 17, Mute, TextAnchor.MiddleLeft);
+        MakeFlat(root, "Undo", W - 244, 13, 82, 44, "Отмена", 16, Ink, TileCol, Rounded(), () => ApplyHistory(false));
+        MakeFlat(root, "Redo", W - 154, 13, 82, 44, "Повтор", 16, Ink, TileCol, Rounded(), () => ApplyHistory(true));
         MakeFlat(root, "Close", W - 64, 13, 44, 44, "X", 20, Ink, TileCol, Circle(), () => menu.CloseMenu());
         AddImage(NewPlaced("HeaderLine", root, 0, HeaderH - 1, W, 1), Line, null, false);
 
@@ -123,7 +143,7 @@ public class BuildMenuPanel : MonoBehaviour
 
         // статус
         AddImage(NewPlaced("StatusLine", root, 0, H - StatusH, W, 1), Line, null, false);
-        status = Label(root, Pad, H - StatusH, PaneW, StatusH, "Выберите тип объекта. Параметры и инструменты пока заглушки.", 16, Mute, TextAnchor.MiddleLeft);
+        status = Label(root, Pad, H - StatusH, PaneW, StatusH, "Выберите тип объекта или откройте параметры сегмента.", 16, Mute, TextAnchor.MiddleLeft);
         status.resizeTextForBestFit = true;
         status.resizeTextMinSize = 12;
         status.resizeTextMaxSize = 16;
@@ -164,7 +184,13 @@ public class BuildMenuPanel : MonoBehaviour
         MakeStepper(pane, 1 * step, ctrlRight, "Ширина", 7);
 
         Row(pane, 2 * step, rowH, "Количество полос", null);
-        MakeSegment(pane, 2 * step, ctrlRight, 232, new[] { "1", "2", "3", "4" }, 1, false, "Количество полос");
+        MakeSegment(pane, 2 * step, ctrlRight, 232, new[] { "1", "2", "3" },
+            (buildManager != null ? buildManager.RoadLanes : 1) - 1, false, "Количество полос", index =>
+            {
+                if (buildManager == null) return;
+                buildManager.SetRoadLanes(index + 1);
+                status.text = "Полос у новой дороги: " + buildManager.RoadLanes;
+            });
 
         Row(pane, 3 * step, rowH, "Высота", "для моста / эстакады");
         MakeChip(pane, 3 * step, ctrlRight, 130, "- м", Faint, false);
@@ -303,7 +329,7 @@ public class BuildMenuPanel : MonoBehaviour
         Label(rt, 0, 0, w, 40, text, 20, color, TextAnchor.MiddleCenter, strong ? FontStyle.Bold : FontStyle.Normal);
     }
 
-    void MakeSegment(RectTransform pane, float y, float right, float w, string[] labels, int initial, bool filled, string name)
+    void MakeSegment(RectTransform pane, float y, float right, float w, string[] labels, int initial, bool filled, string name, System.Action<int> onSelected = null)
     {
         List<Choice> group = new List<Choice>();
         float gap = 8f;
@@ -331,10 +357,12 @@ public class BuildMenuPanel : MonoBehaviour
             Button b = rt.gameObject.AddComponent<Button>();
             b.targetGraphic = fill;
             Tint(b);
+            int option = i;
             b.onClick.AddListener(() =>
             {
                 ApplyChoice(group, c);
-                Stub(name);
+                if (onSelected != null) onSelected(option);
+                else Stub(name);
             });
         }
         ApplyChoice(group, group[Mathf.Clamp(initial, 0, group.Count - 1)]);
@@ -450,18 +478,7 @@ public class BuildMenuPanel : MonoBehaviour
         {
             if (it == null || it.ResolvedCategory != category) continue;
             string label = string.IsNullOrEmpty(it.itemName) ? it.name : it.itemName;
-            var entry = new Entry { label = label, iconKey = IconKey(label), item = it };
-            if (it.stretchWithController && it.LanesCount > 1)
-            {
-                int previous = list.FindLastIndex(e => e.item.finalPrefab == it.finalPrefab &&
-                    e.item.stretchWithController && e.item.LanesCount < it.LanesCount);
-                if (previous >= 0)
-                {
-                    list.Insert(previous + 1, entry);
-                    continue;
-                }
-            }
-            list.Add(entry);
+            list.Add(new Entry { label = label, iconKey = IconKey(label), item = it });
         }
         return list;
     }

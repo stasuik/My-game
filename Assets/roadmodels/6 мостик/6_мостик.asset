@@ -29,3 +29,6 @@ MonoBehaviour:
   minPillarHeight: 1.5
   pillarMaterial: {fileID: 0}
   singleSpan: 1
+  segmentAxis: 2
+  sampleDeckEnds: 1
+  useUpperDeckEdge: 1
