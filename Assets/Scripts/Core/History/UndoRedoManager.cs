@@ -16,12 +16,16 @@ namespace RoadBuilder.Core.History
             {
                 if (_instance == null)
                 {
-                    var root = new GameObject("[UndoRedoManager]");
-                    _instance = root.AddComponent<UndoRedoManager>();
+                    _instance = FindObjectOfType<UndoRedoManager>();
+                    if (_instance == null)
+                    {
+                        var go = new GameObject("[UndoRedoManager]");
+                        _instance = go.AddComponent<UndoRedoManager>();
+                    }
                 }
-
                 return _instance;
             }
+            private set => _instance = value;
         }
 
         [Header("Настройки истории")]
@@ -29,10 +33,22 @@ namespace RoadBuilder.Core.History
 
         private HistoryStack _historyStack;
 
-        public bool CanUndo => _historyStack != null && _historyStack.CanUndo;
-        public bool CanRedo => _historyStack != null && _historyStack.CanRedo;
-        public int UndoCount => _historyStack != null ? _historyStack.UndoCount : 0;
-        public int RedoCount => _historyStack != null ? _historyStack.RedoCount : 0;
+        public bool CanUndo => History.CanUndo;
+        public bool CanRedo => History.CanRedo;
+        public int UndoCount => History.UndoCount;
+        public int RedoCount => History.RedoCount;
+
+        private HistoryStack History
+        {
+            get
+            {
+                if (_historyStack == null)
+                {
+                    _historyStack = new HistoryStack(_historyLimit);
+                }
+                return _historyStack;
+            }
+        }
 
         public event Action<bool, bool> OnHistoryChanged;
         public event Action<IReversibleCommand> OnCommandExecuted;
@@ -48,7 +64,10 @@ namespace RoadBuilder.Core.History
             }
 
             _instance = this;
-            _historyStack = new HistoryStack(_historyLimit);
+            if (_historyStack == null)
+            {
+                _historyStack = new HistoryStack(_historyLimit);
+            }
         }
 
         /// <summary>
@@ -78,6 +97,11 @@ namespace RoadBuilder.Core.History
             _historyStack.Push(command);
             OnCommandExecuted?.Invoke(command);
             NotifyHistoryChanged();
+        }
+
+        public void RecordAction(IReversibleCommand command)
+        {
+            RegisterCommand(command);
         }
 
         public bool Undo()
@@ -185,4 +209,10 @@ namespace RoadBuilder.Core.History
             OnHistoryChanged?.Invoke(CanUndo, CanRedo);
         }
     }
+}
+
+namespace Core.History
+{
+    public class UndoRedoManager : RoadBuilder.Core.History.UndoRedoManager {}
+    public interface IReversibleCommand : RoadBuilder.Core.History.IReversibleCommand {}
 }

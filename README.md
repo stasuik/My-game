@@ -58,3 +58,41 @@ git lfs fsck
 
 - В `.gitattributes` настроен LFS для всех тяжёлых бинарных типов (модели, текстуры, аудио, видео, архивы и т.п.) — при добавлении новых файлов этих типов Git LFS подхватит их автоматически, ничего вручную настраивать не нужно.
 - `Library/`, `Temp/`, `Obj/`, `Build*/`, `Logs/`, `UserSettings/` не хранятся в репозитории (см. `.gitignore`) — Unity пересоздаст их при первом открытии проекта, это нормально и может занять время.
+
+## Архитектура отмены и повтора действий (Undo / Redo)
+
+Для поддержки отмены/повтора действий строительства и манипуляции объектами используется модуль `RoadBuilder.Core.History` на базе паттерна Команда (Command).
+
+### Быстрый старт (Quick Start)
+
+1. **Регистрация действия при спавне объекта:**
+```csharp
+using RoadBuilder.Core.History;
+
+// После создания нового игрового объекта на сцене:
+var command = new SpawnObjectCommand(spawnedGameObject, "Спавн сегмента дороги");
+UndoRedoManager.Instance.RegisterCommand(command);
+```
+
+2. **Интеграция с UI (кнопки панели инструментов в VR):**
+```csharp
+// Подписка на обновление состояния истории:
+UndoRedoManager.Instance.OnHistoryChanged += UpdateUI;
+
+void UpdateUI()
+{
+    btnUndo.interactable = UndoRedoManager.Instance.CanUndo;
+    btnRedo.interactable = UndoRedoManager.Instance.CanRedo;
+}
+
+// Обработчики нажатий:
+public void OnUndoClicked() => UndoRedoManager.Instance.Undo();
+public void OnRedoClicked() => UndoRedoManager.Instance.Redo();
+```
+
+3. **Сброс истории (например, при загрузке/очистке сцены):**
+```csharp
+UndoRedoManager.Instance.Clear();
+```
+
+Подробное руководство, описание интерфейсов и примеры расширения см. в документации: [docs/history-stack-guide.md](docs/history-stack-guide.md).
