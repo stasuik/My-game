@@ -33,14 +33,16 @@ public sealed class RoadArc : MonoBehaviour
             float cosine = Mathf.Cos(theta);
             Vector3 center = radius * (forward * sine + right * (1f - cosine));
             Vector3 across = right * cosine - forward * sine;
+            // The road texture runs along U, with its edges at V = 0 and V = 1.
+            float textureU = length * t / laneWidth;
             for (int lane = 0; lane < lanes; lane++)
             {
                 int index = section * rowSize + lane * 2;
                 float lateral = (lane - lanes * 0.5f) * laneWidth;
                 vertices[index] = center + across * lateral;
                 vertices[index + 1] = center + across * (lateral + laneWidth);
-                uv[index] = new Vector2(0f, length * t / laneWidth);
-                uv[index + 1] = new Vector2(1f, uv[index].y);
+                uv[index] = new Vector2(textureU, 0f);
+                uv[index + 1] = new Vector2(textureU, 1f);
 
                 if (section == sections) continue;
                 int triangle = (section * lanes + lane) * 6;
