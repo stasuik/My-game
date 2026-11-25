@@ -79,10 +79,10 @@ UndoRedoManager.Instance.RegisterCommand(command);
 // Подписка на обновление состояния истории:
 UndoRedoManager.Instance.OnHistoryChanged += UpdateUI;
 
-void UpdateUI()
+void UpdateUI(bool canUndo, bool canRedo)
 {
-    btnUndo.interactable = UndoRedoManager.Instance.CanUndo;
-    btnRedo.interactable = UndoRedoManager.Instance.CanRedo;
+    btnUndo.interactable = canUndo;
+    btnRedo.interactable = canRedo;
 }
 
 // Обработчики нажатий:
@@ -92,7 +92,7 @@ public void OnRedoClicked() => UndoRedoManager.Instance.Redo();
 
 3. **Сброс истории (например, при загрузке/очистке сцены):**
 ```csharp
-UndoRedoManager.Instance.Clear();
+UndoRedoManager.Instance.ClearHistory();
 ```
 
-Подробное руководство, описание интерфейсов и примеры расширения см. в документации: [docs/history-stack-guide.md](docs/history-stack-guide.md).
+Практические примеры спавна одиночных объектов и дорожных цепочек, подключение кнопок и типовые ошибки описаны в гайде [docs/history-stack-guide.md](docs/history-stack-guide.md).
