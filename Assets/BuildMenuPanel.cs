@@ -105,10 +105,10 @@ public class BuildMenuPanel : MonoBehaviour
         AddImage(root, Cream, Rounded(), true);
 
         // шапка
-        Label(root, 20, 10, 330, 34, "Строительство дорог", 26, Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
-        crumb = Label(root, 20, 42, 330, 24, "Проезжая часть > Дорога", 17, Mute, TextAnchor.MiddleLeft);
-        MakeFlat(root, "Undo", W - 244, 13, 82, 44, "Отмена", 16, Ink, TileCol, Rounded(), () => ApplyHistory(false));
-        MakeFlat(root, "Redo", W - 154, 13, 82, 44, "Повтор", 16, Ink, TileCol, Rounded(), () => ApplyHistory(true));
+        Label(root, 20, 10, 350, 34, "Строительство дорог", 26, Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
+        crumb = Label(root, 20, 42, 350, 24, "Проезжая часть > Дорога", 17, Mute, TextAnchor.MiddleLeft);
+        MakeFlat(root, "UndoBtn", W - 168, 13, 44, 44, "↶", 22, Ink, TileCol, Rounded(), () => TriggerUndo());
+        MakeFlat(root, "RedoBtn", W - 116, 13, 44, 44, "↷", 22, Ink, TileCol, Rounded(), () => TriggerRedo());
         MakeFlat(root, "Close", W - 64, 13, 44, 44, "X", 20, Ink, TileCol, Circle(), () => menu.CloseMenu());
         AddImage(NewPlaced("HeaderLine", root, 0, HeaderH - 1, W, 1), Line, null, false);
 
@@ -223,11 +223,15 @@ public class BuildMenuPanel : MonoBehaviour
     RectTransform BuildToolsPane(RectTransform content)
     {
         RectTransform pane = NewPane(content, "Pane_Tools");
+        float tw2 = (PaneW - 16f) / 2f;
+        MakeActionTile(pane, 0, 0, tw2, 104, "undo", "Отмена (Undo)", () => TriggerUndo());
+        MakeActionTile(pane, tw2 + 16f, 0, tw2, 104, "redo", "Повтор (Redo)", () => TriggerRedo());
+
         string[,] items = { { "move", "Переместить" }, { "trash", "Удалить" }, { "anchor", "Точка привязки" } };
         List<Choice> toolGroup = new List<Choice>();
         float tw = (PaneW - 32f) / 3f;
         for (int i = 0; i < 3; i++)
-            MakeTile(pane, i * (tw + 16f), 0, tw, 104, new Entry { label = items[i, 1], iconKey = items[i, 0] }, toolGroup, "Инструменты");
+            MakeTile(pane, i * (tw + 16f), 116f, tw, 104, items[i, 0], items[i, 1], new string[0], toolGroup, "Инструменты");
         return pane;
     }
 
@@ -704,5 +708,59 @@ public class BuildMenuPanel : MonoBehaviour
         Color c;
         ColorUtility.TryParseHtmlString("#" + hex, out c);
         return c;
+    }
+
+    void MakeActionTile(RectTransform parent, float x, float y, float w, float h, string key, string label, Action onClick)
+    {
+        RectTransform rt = NewPlaced(label, parent, x, y, w, h);
+        AddImage(rt, Clear, Rounded(), true);
+        RectTransform fillRt = NewRect("Fill", rt);
+        Stretch(fillRt, 3f);
+        Image fill = AddImage(fillRt, TileCol, Rounded(), true);
+
+        MakeIcon(rt, key, label, w * 0.5f - 22f, 12f, 44f);
+        Text t = Label(rt, 4, 62, w - 8, 34, label, 18, Ink, TextAnchor.MiddleCenter);
+        t.resizeTextForBestFit = true;
+        t.resizeTextMinSize = 12;
+        t.resizeTextMaxSize = 18;
+
+        Button b = rt.gameObject.AddComponent<Button>();
+        b.targetGraphic = fill;
+        Tint(b);
+        b.onClick.AddListener(() => onClick?.Invoke());
+    }
+
+    public void TriggerUndo()
+    {
+        if (RoadBuilder.Core.History.UndoRedoManager.Instance.CanUndo)
+        {
+            string actionName = RoadBuilder.Core.History.UndoRedoManager.Instance.GetUndoActionName();
+            bool ok = RoadBuilder.Core.History.UndoRedoManager.Instance.Undo();
+            if (ok && status != null)
+            {
+                status.text = "Отменено: " + (!string.IsNullOrEmpty(actionName) ? actionName : "действие");
+            }
+        }
+        else if (status != null)
+        {
+            status.text = "Нечего отменять (история пуста)";
+        }
+    }
+
+    public void TriggerRedo()
+    {
+        if (RoadBuilder.Core.History.UndoRedoManager.Instance.CanRedo)
+        {
+            string actionName = RoadBuilder.Core.History.UndoRedoManager.Instance.GetRedoActionName();
+            bool ok = RoadBuilder.Core.History.UndoRedoManager.Instance.Redo();
+            if (ok && status != null)
+            {
+                status.text = "Повторено: " + (!string.IsNullOrEmpty(actionName) ? actionName : "действие");
+            }
+        }
+        else if (status != null)
+        {
+            status.text = "Нечего повторять";
+        }
     }
 }
