@@ -1,4 +1,4 @@
-using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace RoadBuilder.Core.History
@@ -11,6 +11,7 @@ namespace RoadBuilder.Core.History
     {
         private readonly GameObject _targetObject;
         private readonly string _description;
+        private readonly List<(SnapPoint point, SnapPoint target)> _connections;
 
         public string Description => _description;
         public GameObject TargetObject => _targetObject;
@@ -19,6 +20,18 @@ namespace RoadBuilder.Core.History
         {
             _targetObject = targetObject;
             _description = $"Создание: {itemName}";
+            if (targetObject == null) return;
+
+            var recorded = new HashSet<SnapPoint>();
+            foreach (SnapPoint point in targetObject.GetComponentsInChildren<SnapPoint>())
+            {
+                SnapPoint target = point.ConnectedTo;
+                if (target == null || recorded.Contains(point)) continue;
+
+                _connections ??= new List<(SnapPoint point, SnapPoint target)>();
+                _connections.Add((point, target));
+                recorded.Add(target);
+            }
         }
 
         public bool Execute()
@@ -29,7 +42,21 @@ namespace RoadBuilder.Core.History
                 return false;
             }
 
+            if (_targetObject.activeSelf) return true;
+
             _targetObject.SetActive(true);
+            if (_connections == null) return true;
+
+            foreach (var connection in _connections)
+            {
+                if (connection.point != null && connection.point.Connect(connection.target))
+                    continue;
+
+                // Disabling the root also releases links restored earlier in this attempt.
+                _targetObject.SetActive(false);
+                return false;
+            }
+
             return true;
         }
 
