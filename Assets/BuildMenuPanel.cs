@@ -719,7 +719,7 @@ public class BuildMenuPanel : MonoBehaviour
         Stretch(fillRt, 3f);
         Image fill = AddImage(fillRt, TileCol, Rounded(), true);
 
-        MakeIcon(rt, key, label, w * 0.5f - 22f, 12f, 44f);
+        MakeIcon(rt, new Entry { iconKey = key, label = label }, w * 0.5f - 22f, 12f, 44f);
         Text t = Label(rt, 4, 62, w - 8, 34, label, 18, Ink, TextAnchor.MiddleCenter);
         t.resizeTextForBestFit = true;
         t.resizeTextMinSize = 12;
