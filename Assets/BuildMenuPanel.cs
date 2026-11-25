@@ -254,7 +254,8 @@ public class BuildMenuPanel : MonoBehaviour
         List<Choice> toolGroup = new List<Choice>();
         float tw = (PaneW - 32f) / 3f;
         for (int i = 0; i < 3; i++)
-            MakeTile(pane, i * (tw + 16f), 116f, tw, 104, items[i, 0], items[i, 1], new string[0], toolGroup, "Инструменты");
+            MakeTile(pane, i * (tw + 16f), 116f, tw, 104,
+                new Entry { label = items[i, 1], iconKey = items[i, 0] }, toolGroup, "Инструменты");
         return pane;
     }
 
