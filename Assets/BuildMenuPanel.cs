@@ -624,8 +624,8 @@ public class BuildMenuPanel : MonoBehaviour
     }
 
     // плоская кнопка с текстом
-    void MakeFlat(RectTransform parent, string name, float x, float y, float w, float h, string text, int size,
-                  Color textColor, Color bg, Sprite sprite, Action onClick)
+    Button MakeFlat(RectTransform parent, string name, float x, float y, float w, float h, string text, int size,
+                   Color textColor, Color bg, Sprite sprite, Action onClick)
     {
         RectTransform rt = NewPlaced(name, parent, x, y, w, h);
         AddImage(rt, bg, sprite, true);
@@ -633,6 +633,96 @@ public class BuildMenuPanel : MonoBehaviour
         Button b = rt.gameObject.AddComponent<Button>();
         Flat(b);
         b.onClick.AddListener(() => onClick());
+        return b;
+    }
+
+    Button MakeHistoryButton(RectTransform parent, string name, string iconKey, string fallbackText,
+                             float x, float y, float w, float h,
+                             out Image bgImage, out Image iconImage, out Text labelText,
+                             out Text badgeText, out GameObject badgeObj, Action onClick)
+    {
+        RectTransform rt = NewPlaced(name, parent, x, y, w, h);
+        bgImage = AddImage(rt, TileCol, Rounded(), true);
+
+        // Попытка загрузить кастомную иконку из Resources/UI/Icons/
+        Sprite icon = Resources.Load<Sprite>("UI/Icons/" + iconKey);
+        if (icon != null)
+        {
+            RectTransform iconRt = NewPlaced("Icon", rt, (w - 24f) / 2f, (h - 24f) / 2f, 24f, 24f);
+            iconImage = iconRt.gameObject.AddComponent<Image>();
+            iconImage.sprite = icon;
+            iconImage.color = Ink;
+            iconImage.raycastTarget = false;
+            labelText = null;
+        }
+        else
+        {
+            iconImage = null;
+            labelText = Label(rt, 0, 0, w, h, fallbackText, 22, Ink, TextAnchor.MiddleCenter, FontStyle.Bold);
+        }
+
+        // Индикатор-бейдж счетчика истории
+        RectTransform badgeRt = NewPlaced("Badge", rt, w - 16f, -4f, 20f, 18f);
+        AddImage(badgeRt, Orange, Circle(), false);
+        badgeText = Label(badgeRt, 0, 0, 20f, 18f, "0", 11, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+        badgeObj = badgeRt.gameObject;
+        badgeObj.SetActive(false);
+
+        Button b = rt.gameObject.AddComponent<Button>();
+        Flat(b);
+        b.onClick.AddListener(() => onClick());
+        return b;
+    }
+
+    void SetupHeaderNavigation(Button undo, Button redo, Button close)
+    {
+        if (undo == null || redo == null || close == null) return;
+        Navigation navUndo = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = redo };
+        Navigation navRedo = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = undo, selectOnRight = close };
+        Navigation navClose = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = redo };
+        undo.navigation = navUndo;
+        redo.navigation = navRedo;
+        close.navigation = navClose;
+    }
+
+    public void UpdateHistoryButtons()
+    {
+        if (historyManager == null)
+        {
+            historyManager = FindObjectOfType<UndoRedoManager>();
+            if (historyManager == null) historyManager = UndoRedoManager.Instance;
+        }
+
+        bool canUndo = historyManager != null && historyManager.CanUndo;
+        bool canRedo = historyManager != null && historyManager.CanRedo;
+        int undoCount = historyManager != null ? historyManager.UndoCount : 0;
+        int redoCount = historyManager != null ? historyManager.RedoCount : 0;
+
+        if (undoButton != null)
+        {
+            undoButton.interactable = canUndo;
+            if (undoBgImage != null) undoBgImage.color = canUndo ? TileCol : DisabledBg;
+            if (undoLabel != null) undoLabel.color = canUndo ? Ink : DisabledText;
+            if (undoIconImage != null) undoIconImage.color = canUndo ? Ink : DisabledText;
+        }
+        if (undoBadgeObj != null && undoBadge != null)
+        {
+            undoBadgeObj.SetActive(undoCount > 0);
+            undoBadge.text = undoCount > 99 ? "99+" : undoCount.ToString();
+        }
+
+        if (redoButton != null)
+        {
+            redoButton.interactable = canRedo;
+            if (redoBgImage != null) redoBgImage.color = canRedo ? TileCol : DisabledBg;
+            if (redoLabel != null) redoLabel.color = canRedo ? Ink : DisabledText;
+            if (redoIconImage != null) redoIconImage.color = canRedo ? Ink : DisabledText;
+        }
+        if (redoBadgeObj != null && redoBadge != null)
+        {
+            redoBadgeObj.SetActive(redoCount > 0);
+            redoBadge.text = redoCount > 99 ? "99+" : redoCount.ToString();
+        }
     }
 
     static void Flat(Button b)
