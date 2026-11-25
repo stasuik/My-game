@@ -16,7 +16,6 @@ namespace RoadBuilder.Core.UI
 
         private GameObject tooltipObj;
         private Text label;
-        private CanvasGroup cg;
         private bool isHovered = false;
         private float hoverTimer = 0f;
 
@@ -84,14 +83,16 @@ namespace RoadBuilder.Core.UI
 
                 Image bg = tooltipObj.AddComponent<Image>();
                 bg.color = new Color(0.12f, 0.13f, 0.16f, 0.92f);
+                bg.raycastTarget = false;
 
                 GameObject tgo = new GameObject("Text", typeof(RectTransform));
                 tgo.transform.SetParent(tooltipObj.transform, false);
                 label = tgo.AddComponent<Text>();
-                label.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 label.fontSize = 13;
                 label.alignment = TextAnchor.MiddleCenter;
                 label.color = Color.white;
+                label.raycastTarget = false;
 
                 RectTransform trt = tgo.GetComponent<RectTransform>();
                 trt.anchorMin = Vector2.zero;
@@ -107,6 +108,7 @@ namespace RoadBuilder.Core.UI
         private void OnDisable()
         {
             isHovered = false;
+            hoverTimer = 0f;
             if (tooltipObj != null) tooltipObj.SetActive(false);
         }
     }

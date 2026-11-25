@@ -2,7 +2,7 @@ using System;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.UI;
-using Core.History;
+using RoadBuilder.Core.History;
 
 namespace Tests.Editor
 {
@@ -126,8 +126,8 @@ namespace Tests.Editor
         [Test]
         public void Test_EventSubscription_UpdatesButtonsAutomatically()
         {
-            // Subscribing to manager event
-            manager.OnHistoryChanged += panel.UpdateHistoryButtons;
+            panel.historyManager = manager;
+            panelObj.SendMessage("OnEnable");
 
             manager.RecordAction(new TestCommand("Auto Test"));
             Assert.IsTrue(panel.undoButton.interactable);
@@ -137,6 +137,14 @@ namespace Tests.Editor
             Assert.IsFalse(panel.undoButton.interactable);
             Assert.IsTrue(panel.redoButton.interactable);
             Assert.AreEqual("1", panel.redoBadge.text);
+
+            panelObj.SendMessage("OnDisable");
+            manager.Redo();
+            Assert.IsTrue(panel.redoButton.interactable);
+
+            panelObj.SendMessage("OnEnable");
+            Assert.IsTrue(panel.undoButton.interactable);
+            Assert.IsFalse(panel.redoButton.interactable);
         }
     }
 }

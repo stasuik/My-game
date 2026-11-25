@@ -93,7 +93,7 @@ namespace RoadBuilder.Core.UI
                 GameObject textGo = new GameObject("ToastText", typeof(RectTransform));
                 textGo.transform.SetParent(transform, false);
                 toastText = textGo.AddComponent<Text>();
-                toastText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                toastText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 toastText.fontSize = 18;
                 toastText.alignment = TextAnchor.MiddleCenter;
                 toastText.color = InkText;

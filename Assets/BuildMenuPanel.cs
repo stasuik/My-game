@@ -84,6 +84,7 @@ public class BuildMenuPanel : MonoBehaviour
     public GameObject redoBadgeObj;
 
     public RoadBuilder.Core.History.IHistoryManager historyManager;
+    IHistoryManager subscribedHistory;
 
     public void Init(BuildManager bm, VRMenuController mc)
     {
@@ -98,6 +99,34 @@ public class BuildMenuPanel : MonoBehaviour
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
         Build(rt);
+        if (isActiveAndEnabled)
+            SubscribeToHistory();
+    }
+
+    void OnEnable()
+    {
+        if (undoButton != null && redoButton != null)
+            SubscribeToHistory();
+    }
+
+    void OnDisable()
+    {
+        if (subscribedHistory == null) return;
+        subscribedHistory.OnHistoryChanged -= UpdateHistoryButtons;
+        subscribedHistory = null;
+    }
+
+    void SubscribeToHistory()
+    {
+        if (subscribedHistory != null) return;
+        subscribedHistory = GetHistoryManager();
+        subscribedHistory.OnHistoryChanged += UpdateHistoryButtons;
+        UpdateHistoryButtons();
+    }
+
+    IHistoryManager GetHistoryManager()
+    {
+        return historyManager ??= UndoRedoManager.Instance;
     }
 
     void ApplyHistory(bool redo)
@@ -712,16 +741,11 @@ public class BuildMenuPanel : MonoBehaviour
 
     public void UpdateHistoryButtons()
     {
-        if (historyManager == null)
-        {
-            historyManager = FindObjectOfType<RoadBuilder.Core.History.UndoRedoManager>();
-            if (historyManager == null) historyManager = RoadBuilder.Core.History.UndoRedoManager.Instance;
-        }
-
-        bool canUndo = historyManager != null && historyManager.CanUndo;
-        bool canRedo = historyManager != null && historyManager.CanRedo;
-        int undoCount = historyManager != null ? historyManager.UndoCount : 0;
-        int redoCount = historyManager != null ? historyManager.RedoCount : 0;
+        var history = GetHistoryManager();
+        bool canUndo = history.CanUndo;
+        bool canRedo = history.CanRedo;
+        int undoCount = history.UndoCount;
+        int redoCount = history.RedoCount;
 
         if (undoButton != null)
         {
@@ -852,7 +876,7 @@ public class BuildMenuPanel : MonoBehaviour
 
     public void TriggerUndo()
     {
-        var mgr = RoadBuilder.Core.History.UndoRedoManager.Instance;
+        var mgr = GetHistoryManager();
         if (mgr != null && mgr.CanUndo)
         {
             string actionName = mgr.GetUndoActionName();
@@ -881,7 +905,7 @@ public class BuildMenuPanel : MonoBehaviour
 
     public void TriggerRedo()
     {
-        var mgr = RoadBuilder.Core.History.UndoRedoManager.Instance;
+        var mgr = GetHistoryManager();
         if (mgr != null && mgr.CanRedo)
         {
             string actionName = mgr.GetRedoActionName();
