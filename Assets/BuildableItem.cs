@@ -33,12 +33,16 @@ public class BuildableItem : ScriptableObject
     public bool useCustomSegmentEnds = false;
     public bool sampleDeckEnds;
     public bool useUpperDeckEdge;
+    [Tooltip("Place connections on the bottom of a model with a flat floor.")]
+    public bool anchorAtBase;
     public string deckMeshObject;
     public string hiddenMeshObject;
     public int LongitudinalAxis => segmentAxis == SegmentAxis.Y ? 1 : segmentAxis == SegmentAxis.X ? 0 : 2;
     public Vector3 segmentStartLocal;
     public Vector3 segmentEndLocal;
     public bool stretchWithController;
+    [Tooltip("Bend the source mesh on turns to retain its materials and UVs.")]
+    public bool bendSourceMesh;
     public float stepDistance = 2.8f;
     public float heightOffset = 0.04f;
 

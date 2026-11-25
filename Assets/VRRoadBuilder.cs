@@ -258,7 +258,8 @@ public class VRRoadBuilder : MonoBehaviour
 
         Vector3 start = bounds.center;
         Vector3 end = bounds.center;
-        start[up] = end[up] = localUp[up] >= 0 ? bounds.max[up] : bounds.min[up];
+        bool useMaxHeight = (localUp[up] >= 0) != item.anchorAtBase;
+        start[up] = end[up] = useMaxHeight ? bounds.max[up] : bounds.min[up];
         start[along] = bounds.min[along];
         end[along] = bounds.max[along];
 
@@ -343,10 +344,7 @@ public class VRRoadBuilder : MonoBehaviour
         if (direction.sqrMagnitude < 0.0001f) return null;
 
         GameObject seg = CreateSegmentModel(prefab, item, parent, lanesCount);
-        if (!string.IsNullOrEmpty(item.hiddenMeshObject))
-            foreach (var filter in seg.GetComponentsInChildren<MeshFilter>())
-                if (filter.gameObject != seg && filter.name == item.hiddenMeshObject)
-                    filter.gameObject.SetActive(false);
+        HideUnusedSegmentMeshes(seg, item);
 
         PositionSegment(seg, prefab, item, start, end);
 
@@ -364,6 +362,14 @@ public class VRRoadBuilder : MonoBehaviour
                     r.gameObject.AddComponent<MeshCollider>();
         }
         return seg;
+    }
+
+    private static void HideUnusedSegmentMeshes(GameObject seg, BuildableItem item)
+    {
+        if (!string.IsNullOrEmpty(item.hiddenMeshObject))
+            foreach (var filter in seg.GetComponentsInChildren<MeshFilter>())
+                if (filter.gameObject != seg && filter.name == item.hiddenMeshObject)
+                    filter.gameObject.SetActive(false);
     }
 
     private GameObject CreateSegmentModel(GameObject prefab, BuildableItem item, Transform parent, int lanesCount)
@@ -463,10 +469,25 @@ public class VRRoadBuilder : MonoBehaviour
         {
             if (preview) ClearGhostRoad();
             var root = new GameObject(preview ? "[GHOST_ROAD_ARC]" : "Built_" + item.itemName + "_Arc",
-                typeof(MeshFilter), typeof(MeshRenderer), typeof(RoadArc));
+                typeof(RoadArc));
             arc = root.GetComponent<RoadArc>();
-            var source = prefab.GetComponentInChildren<MeshRenderer>();
-            if (source != null) root.GetComponent<MeshRenderer>().sharedMaterial = source.sharedMaterial;
+            if (item.bendSourceMesh)
+            {
+                GameObject model = CreateSegmentModel(prefab, item, root.transform, lanes);
+                HideUnusedSegmentMeshes(model, item);
+                float sourceLength = GetSegmentLength(item);
+                PositionSegment(model, prefab, item, Vector3.zero, Vector3.forward * sourceLength);
+                foreach (var collider in model.GetComponentsInChildren<Collider>())
+                    collider.enabled = false;
+                arc.SetSourceModel(model, sourceLength);
+            }
+            else
+            {
+                root.AddComponent<MeshFilter>();
+                var renderer = root.AddComponent<MeshRenderer>();
+                var source = prefab.GetComponentInChildren<MeshRenderer>();
+                if (source != null) renderer.sharedMaterial = source.sharedMaterial;
+            }
             if (preview)
             {
                 arcGhost = arc;
@@ -479,7 +500,9 @@ public class VRRoadBuilder : MonoBehaviour
 
         var segment = arc.gameObject.AddComponent<RoadSegment>();
         segment.Initialize(start, end, forward, tangent, lanes);
-        arc.gameObject.AddComponent<MeshCollider>().sharedMesh = arc.GetComponent<MeshFilter>().sharedMesh;
+        foreach (var filter in arc.GetComponentsInChildren<MeshFilter>())
+            if (filter.sharedMesh != null)
+                filter.gameObject.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;
         if (segment.StartPoint.Connect(startTarget))
             segment.CloseSeam(segment.StartPoint, startTarget);
 
@@ -540,44 +563,59 @@ public class VRRoadBuilder : MonoBehaviour
         }
     }
 
-    public GameObject BuildFinalRoad(List<Vector3> points, BuildableItem item)
+    public GameObject BuildFinalRoad(List<Vector3> points, BuildableItem item,
+        SnapPoint startTarget = null, SnapPoint endTarget = null, int lanesCount = 1)
     {
         ClearGhostRoad();
         if (points.Count < 2 || item.finalPrefab == null) return null;
+        if ((startTarget != null && !startTarget.Available) || (endTarget != null && !endTarget.Available))
+            return null;
+
+        Vector3 offset = Vector3.up * item.heightOffset;
+        int last = points.Count - 1;
+        Vector3 firstDirection = points[item.singleSpan ? last : 1] - points[0];
+        Vector3 lastDirection = points[last] - points[item.singleSpan ? 0 : last - 1];
+        if ((startTarget != null && !startTarget.MatchesEnd(points[0] + offset, firstDirection)) ||
+            (endTarget != null && !endTarget.MatchesEnd(points[last] + offset, -lastDirection)))
+            return null;
 
         GameObject container = new GameObject("Built_" + item.itemName);
 
         SnapPoint previous = startTarget;
         for (int i = 1; i < points.Count; i++)
         {
-            SpawnSegment(item.finalPrefab, points[0], points[points.Count - 1],
-                item, container.transform, false);
-            if (!item.snapToTerrain && item.generatePillars)
-                SpawnPillarsAlongSpan(points[0], points[points.Count - 1],
-                    container.transform, false, item);
+            if (item.singleSpan) i = points.Count - 1;
+            GameObject built = SpawnSegment(item.finalPrefab, points[item.singleSpan ? 0 : i - 1],
+                points[i], item, container.transform, false, lanesCount);
+            if (built == null) continue;
+            var segment = built.GetComponent<RoadSegment>();
+            if (segment.StartPoint.Connect(previous))
+                segment.CloseSeam(segment.StartPoint, previous);
+            previous = segment.EndPoint;
         }
-        else
+        if (previous == startTarget)
+        {
+            Destroy(container);
+            return null;
+        }
+
+        if (previous.Connect(endTarget))
+            previous.GetComponentInParent<RoadSegment>().CloseSeam(previous, endTarget);
+
+        if (item.singleSpan)
+        {
+            if (!item.snapToTerrain && item.generatePillars)
+                SpawnPillarsAlongSpan(points[0], points[points.Count - 1], container.transform, false, item);
+        }
+        else if (!item.snapToTerrain && item.generatePillars)
         {
             for (int i = 1; i < points.Count; i++)
             {
-                SpawnSegment(item.finalPrefab, points[i - 1], points[i],
-                    item, container.transform, false);
-            }
-
-            if (!item.snapToTerrain && item.generatePillars)
-            {
-                for (int i = 1; i < points.Count; i++)
-                {
-                    var (pos, _) = CalculateSegmentTransform(points[i - 1], points[i], item);
-                    SpawnPillar(pos, container.transform, false, item);
-                }
+                var (pos, _) = CalculateSegmentTransform(points[i - 1], points[i], item);
+                SpawnPillar(pos, container.transform, false, item);
             }
         }
-
-        // Регистрируем создание дороги в системе отмены / повтора
-        RoadBuilder.Core.History.UndoRedoManager.Instance.RegisterCommand(
-            new RoadBuilder.Core.History.SpawnObjectCommand(container, item.itemName));
-
+        UndoRedoManager.Instance.RegisterCommand(new SpawnObjectCommand(container, item.itemName));
         return container;
     }
 

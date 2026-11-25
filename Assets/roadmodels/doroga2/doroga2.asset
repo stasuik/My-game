@@ -19,6 +19,7 @@ MonoBehaviour:
   ghostPrefab: {fileID: 919132149155446097, guid: 650aa600ba3e05949b913cc96435132d, type: 3}
   isSplineType: 1
   stretchWithController: 1
+  bendSourceMesh: 1
   segmentAxis: 1
   sampleDeckEnds: 1
   useUpperDeckEdge: 1

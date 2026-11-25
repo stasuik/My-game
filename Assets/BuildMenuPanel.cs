@@ -34,6 +34,8 @@ public class BuildMenuPanel : MonoBehaviour
     static readonly Color Ink = Hex("3B2B1A");
     static readonly Color Mute = Hex("8A7558");
     static readonly Color Faint = Hex("B79C78");
+    static readonly Color DisabledBg = Hex("EDE3D2");
+    static readonly Color DisabledText = Hex("A89B88");
     static readonly Color Clear = new Color(1f, 1f, 1f, 0f);
 
     // плитка меню: либо объект из каталога, либо заглушка (stubLabel), либо инструмент
@@ -66,6 +68,24 @@ public class BuildMenuPanel : MonoBehaviour
     // выбор типа и придорожных объектов в одной группе, чтобы выбрано было что-то одно
     readonly List<Choice> pickGroup = new List<Choice>();
 
+    [Header("Элементы интерфейса истории Undo/Redo")]
+    public Button undoButton;
+    public Image undoBgImage;
+    public Image undoIconImage;
+    public Text undoLabel;
+    public Text undoBadge;
+    public GameObject undoBadgeObj;
+
+    public Button redoButton;
+    public Image redoBgImage;
+    public Image redoIconImage;
+    public Text redoLabel;
+    public Text redoBadge;
+    public GameObject redoBadgeObj;
+
+    public RoadBuilder.Core.History.IHistoryManager historyManager;
+    IHistoryManager subscribedHistory;
+
     public void Init(BuildManager bm, VRMenuController mc)
     {
         buildManager = bm;
@@ -79,6 +99,34 @@ public class BuildMenuPanel : MonoBehaviour
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
         Build(rt);
+        if (isActiveAndEnabled)
+            SubscribeToHistory();
+    }
+
+    void OnEnable()
+    {
+        if (undoButton != null && redoButton != null)
+            SubscribeToHistory();
+    }
+
+    void OnDisable()
+    {
+        if (subscribedHistory == null) return;
+        subscribedHistory.OnHistoryChanged -= UpdateHistoryButtons;
+        subscribedHistory = null;
+    }
+
+    void SubscribeToHistory()
+    {
+        if (subscribedHistory != null) return;
+        subscribedHistory = GetHistoryManager();
+        subscribedHistory.OnHistoryChanged += UpdateHistoryButtons;
+        UpdateHistoryButtons();
+    }
+
+    IHistoryManager GetHistoryManager()
+    {
+        return historyManager ??= UndoRedoManager.Instance;
     }
 
     void ApplyHistory(bool redo)
@@ -107,9 +155,13 @@ public class BuildMenuPanel : MonoBehaviour
         // шапка
         Label(root, 20, 10, 350, 34, "Строительство дорог", 26, Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
         crumb = Label(root, 20, 42, 350, 24, "Проезжая часть > Дорога", 17, Mute, TextAnchor.MiddleLeft);
-        MakeFlat(root, "UndoBtn", W - 168, 13, 44, 44, "↶", 22, Ink, TileCol, Rounded(), () => TriggerUndo());
-        MakeFlat(root, "RedoBtn", W - 116, 13, 44, 44, "↷", 22, Ink, TileCol, Rounded(), () => TriggerRedo());
-        MakeFlat(root, "Close", W - 64, 13, 44, 44, "X", 20, Ink, TileCol, Circle(), () => menu.CloseMenu());
+        undoButton = MakeHistoryButton(root, "UndoBtn", "undo", "↶", W - 168, 13, 44, 44,
+            out undoBgImage, out undoIconImage, out undoLabel, out undoBadge, out undoBadgeObj, () => TriggerUndo());
+        redoButton = MakeHistoryButton(root, "RedoBtn", "redo", "↷", W - 116, 13, 44, 44,
+            out redoBgImage, out redoIconImage, out redoLabel, out redoBadge, out redoBadgeObj, () => TriggerRedo());
+        Button closeButton = MakeFlat(root, "Close", W - 64, 13, 44, 44, "X", 20, Ink, TileCol, Circle(), () => menu.CloseMenu());
+        SetupHeaderNavigation(undoButton, redoButton, closeButton);
+        UpdateHistoryButtons();
         AddImage(NewPlaced("HeaderLine", root, 0, HeaderH - 1, W, 1), Line, null, false);
 
         // вкладки
@@ -231,7 +283,8 @@ public class BuildMenuPanel : MonoBehaviour
         List<Choice> toolGroup = new List<Choice>();
         float tw = (PaneW - 32f) / 3f;
         for (int i = 0; i < 3; i++)
-            MakeTile(pane, i * (tw + 16f), 116f, tw, 104, items[i, 0], items[i, 1], new string[0], toolGroup, "Инструменты");
+            MakeTile(pane, i * (tw + 16f), 116f, tw, 104,
+                new Entry { label = items[i, 1], iconKey = items[i, 0] }, toolGroup, "Инструменты");
         return pane;
     }
 
@@ -671,6 +724,7 @@ public class BuildMenuPanel : MonoBehaviour
         Button b = rt.gameObject.AddComponent<Button>();
         Flat(b);
         b.onClick.AddListener(() => onClick());
+        RoadBuilder.Core.UI.VRTooltipTrigger.Attach(b.gameObject, name == "UndoBtn" ? "Отменить последнее действие [Ctrl+Z]" : "Повторить отменённое действие [Ctrl+Y]");
         return b;
     }
 
@@ -687,16 +741,11 @@ public class BuildMenuPanel : MonoBehaviour
 
     public void UpdateHistoryButtons()
     {
-        if (historyManager == null)
-        {
-            historyManager = FindObjectOfType<UndoRedoManager>();
-            if (historyManager == null) historyManager = UndoRedoManager.Instance;
-        }
-
-        bool canUndo = historyManager != null && historyManager.CanUndo;
-        bool canRedo = historyManager != null && historyManager.CanRedo;
-        int undoCount = historyManager != null ? historyManager.UndoCount : 0;
-        int redoCount = historyManager != null ? historyManager.RedoCount : 0;
+        var history = GetHistoryManager();
+        bool canUndo = history.CanUndo;
+        bool canRedo = history.CanRedo;
+        int undoCount = history.UndoCount;
+        int redoCount = history.RedoCount;
 
         if (undoButton != null)
         {
@@ -723,6 +772,11 @@ public class BuildMenuPanel : MonoBehaviour
             redoBadgeObj.SetActive(redoCount > 0);
             redoBadge.text = redoCount > 99 ? "99+" : redoCount.ToString();
         }
+    }
+
+    public void UpdateHistoryButtons(bool canUndo, bool canRedo)
+    {
+        UpdateHistoryButtons();
     }
 
     static void Flat(Button b)
@@ -808,7 +862,7 @@ public class BuildMenuPanel : MonoBehaviour
         Stretch(fillRt, 3f);
         Image fill = AddImage(fillRt, TileCol, Rounded(), true);
 
-        MakeIcon(rt, key, label, w * 0.5f - 22f, 12f, 44f);
+        MakeIcon(rt, new Entry { iconKey = key, label = label }, w * 0.5f - 22f, 12f, 44f);
         Text t = Label(rt, 4, 62, w - 8, 34, label, 18, Ink, TextAnchor.MiddleCenter);
         t.resizeTextForBestFit = true;
         t.resizeTextMinSize = 12;
@@ -822,35 +876,59 @@ public class BuildMenuPanel : MonoBehaviour
 
     public void TriggerUndo()
     {
-        if (RoadBuilder.Core.History.UndoRedoManager.Instance.CanUndo)
+        var mgr = GetHistoryManager();
+        if (mgr != null && mgr.CanUndo)
         {
-            string actionName = RoadBuilder.Core.History.UndoRedoManager.Instance.GetUndoActionName();
-            bool ok = RoadBuilder.Core.History.UndoRedoManager.Instance.Undo();
-            if (ok && status != null)
+            string actionName = mgr.GetUndoActionName();
+            bool ok = mgr.Undo();
+            if (ok)
             {
-                status.text = "Отменено: " + (!string.IsNullOrEmpty(actionName) ? actionName : "действие");
+                if (status != null)
+                {
+                    status.text = "Отменено: " + (!string.IsNullOrEmpty(actionName) ? actionName : "действие");
+                }
+                RoadBuilder.Core.UI.VRToastSystem.Instance?.ShowUndoSuccess(actionName);
+                RoadBuilder.Core.Feedback.VRFeedbackManager.Instance?.PlayUndoSuccess();
             }
         }
-        else if (status != null)
+        else
         {
-            status.text = "Нечего отменять (история пуста)";
+            if (status != null)
+            {
+                status.text = "Нечего отменять (история пуста)";
+            }
+            RoadBuilder.Core.UI.VRToastSystem.Instance?.ShowUndoEmpty();
+            RoadBuilder.Core.Feedback.VRFeedbackManager.Instance?.PlayEmptyFailure();
         }
+        UpdateHistoryButtons();
     }
 
     public void TriggerRedo()
     {
-        if (RoadBuilder.Core.History.UndoRedoManager.Instance.CanRedo)
+        var mgr = GetHistoryManager();
+        if (mgr != null && mgr.CanRedo)
         {
-            string actionName = RoadBuilder.Core.History.UndoRedoManager.Instance.GetRedoActionName();
-            bool ok = RoadBuilder.Core.History.UndoRedoManager.Instance.Redo();
-            if (ok && status != null)
+            string actionName = mgr.GetRedoActionName();
+            bool ok = mgr.Redo();
+            if (ok)
             {
-                status.text = "Повторено: " + (!string.IsNullOrEmpty(actionName) ? actionName : "действие");
+                if (status != null)
+                {
+                    status.text = "Повторено: " + (!string.IsNullOrEmpty(actionName) ? actionName : "действие");
+                }
+                RoadBuilder.Core.UI.VRToastSystem.Instance?.ShowRedoSuccess(actionName);
+                RoadBuilder.Core.Feedback.VRFeedbackManager.Instance?.PlayRedoSuccess();
             }
         }
-        else if (status != null)
+        else
         {
-            status.text = "Нечего повторять";
+            if (status != null)
+            {
+                status.text = "Нечего повторять";
+            }
+            RoadBuilder.Core.UI.VRToastSystem.Instance?.ShowRedoEmpty();
+            RoadBuilder.Core.Feedback.VRFeedbackManager.Instance?.PlayEmptyFailure();
         }
+        UpdateHistoryButtons();
     }
 }
