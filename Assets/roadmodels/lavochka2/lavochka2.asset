@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: lavochka2
   m_EditorClassIdentifier: 
   itemName: "\u041B\u0430\u0432\u043E\u0447\u043A\u0430 2"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: 1ea6ee9b87e6deb43b305f5bde3396bd, type: 3}
+  category: 0
   finalPrefab: {fileID: 8069080253321767172, guid: 0ec983257034ef74db6a0de0cf484f25, type: 3}
   ghostPrefab: {fileID: 8069080253321767172, guid: 0ec983257034ef74db6a0de0cf484f25, type: 3}
   isSplineType: 0

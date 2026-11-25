@@ -1,3 +1,4 @@
+using RoadBuilder.Core.History;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -24,6 +25,22 @@ public class VRConstructionController : MonoBehaviour
     private bool wasTriggerPressedLastFrame = false;
     private float initialBuildHeight = 0f;
     private Vector3 lastValidHitPoint;
+    private const float MinStretchLength = 2f;
+    private const float MaxStretchLength = 30f;
+    private const float StretchStep = 0.1f;
+    private const float TurnDeadZone = 0.08f;
+    private const float TurnDegreesPerMeter = 180f;
+    private const float MaxTurnDegrees = 90f;
+    private Vector3 stretchHandOrigin;
+    private Vector3 stretchForward;
+    private float stretchInitialLength;
+    private BuildableItem stretchItem;
+    private int stretchLanes = 1;
+    private float stretchLaneWidth;
+    private float stretchAngle;
+    private float stretchLength;
+    private SnapPoint startSnap;
+    private SnapPoint endSnap;
     private GameObject singleGhost;
     private float singleRotationOffset = 0f;
     private bool wasRotateLeftPressed = false;
@@ -32,6 +49,7 @@ public class VRConstructionController : MonoBehaviour
     private InputAction rotateRightAction;
 
     private VRMenuController menuController;
+    private bool waitForTriggerRelease;
 
     private void Awake()
     {
@@ -61,6 +79,15 @@ public class VRConstructionController : MonoBehaviour
                 rotateRightAction?.Enable();
             }
         }
+    }
+
+    private void OnEnable()
+    {
+        triggerAction?.action?.Enable();
+        rotateLeftAction?.Enable();
+        rotateRightAction?.Enable();
+        if (handTransform == null)
+            Debug.LogError("Construction requires a handTransform. Assign the controller ray origin in the Inspector.", this);
     }
 
     private void Update()
@@ -106,25 +133,49 @@ public class VRConstructionController : MonoBehaviour
         if (menuController != null && menuController.menuCanvas != null && menuController.menuCanvas.activeSelf)
         {
             if (currentState == ConstructionState.Building) CancelConstruction();
+            else roadBuilder.ClearGhostRoad();
             ClearSingleGhost();
             singleRotationOffset = 0f;
             wasTriggerPressedLastFrame = isTriggerHeld;
             return;
         }
 
+        if (waitForTriggerRelease)
+        {
+            wasTriggerPressedLastFrame = isTriggerHeld;
+            if (isTriggerHeld) return;
+            waitForTriggerRelease = false;
+        }
+
         BuildableItem currentItem = buildManager.CurrentItem;
+
+        if (stretchItem != null && stretchItem != currentItem)
+            CancelConstruction();
 
         if (isTriggerHeld && !wasTriggerPressedLastFrame)
         {
             if (currentItem.isSplineType)
             {
-                currentState = ConstructionState.Building;
                 buildPoints.Clear();
 
-                if (GetLaserHitPoint(out Vector3 hitPoint, out _))
+                if (TryGetBuildStart(currentItem, out Vector3 hitPoint, out startSnap))
                 {
+                    endSnap = null;
+                    currentState = ConstructionState.Building;
+                    lastValidHitPoint = hitPoint;
                     buildPoints.Add(hitPoint);
                     initialBuildHeight = hitPoint.y;
+                    if (currentItem.stretchWithController)
+                    {
+                        stretchItem = currentItem;
+                        stretchLanes = buildManager.RoadLanes;
+                        stretchLaneWidth = roadBuilder.GetLaneWidth(currentItem);
+                        stretchHandOrigin = handTransform.position;
+                        stretchForward = GetStretchForward(startSnap);
+                        stretchInitialLength = Mathf.Clamp(roadBuilder.GetSegmentLength(currentItem),
+                            MinStretchLength, MaxStretchLength);
+                        UpdateStretch(true);
+                    }
                 }
             }
             else
@@ -138,14 +189,50 @@ public class VRConstructionController : MonoBehaviour
             UpdateSingleGhost(currentItem);
         }
 
-        if (isTriggerHeld && wasTriggerPressedLastFrame && currentState == ConstructionState.Building)
+        if (currentState == ConstructionState.Idle && currentItem.isSplineType)
         {
-            if (currentItem.isSplineType && GetLaserHitPoint(out Vector3 currentHitPoint, out _))
+            if (TryGetBuildStart(currentItem, out Vector3 cursor, out SnapPoint target))
             {
-                if (currentItem.singleSpan)
+                if (currentItem.stretchWithController)
                 {
-                    currentHitPoint.y = initialBuildHeight;
+                    float length = Mathf.Clamp(roadBuilder.GetSegmentLength(currentItem),
+                        MinStretchLength, MaxStretchLength);
+                    roadBuilder.DrawStretchGhost(cursor, cursor + GetStretchForward(target) * length,
+                        currentItem, buildManager.RoadLanes);
                 }
+                roadBuilder.ShowSnapIndicator(target);
+            }
+            else roadBuilder.ClearGhostRoad();
+        }
+
+        if (wasTriggerPressedLastFrame && currentState == ConstructionState.Building)
+        {
+            if (stretchItem != null)
+                UpdateStretch(isTriggerHeld);
+            else if (currentItem.isSplineType && TryGetBuildEnd(currentItem, out Vector3 currentHitPoint, out endSnap))
+            {
+                Vector3 offset = Vector3.up * currentItem.heightOffset;
+                Vector3 origin = buildPoints[buildPoints.Count - 1];
+                bool alignStart = buildPoints.Count == 1 && startSnap != null && startSnap.Available;
+                if (alignStart && !roadBuilder.CanAlignSnap(currentHitPoint - origin, startSnap.Forward))
+                {
+                    endSnap = null;
+                    lastValidHitPoint = origin;
+                    roadBuilder.ClearGhostRoad();
+                    if (!isTriggerHeld)
+                    {
+                        CancelConstruction();
+                        wasTriggerPressedLastFrame = false;
+                    }
+                    return;
+                }
+                if (endSnap != null)
+                    currentHitPoint = endSnap.Position - offset;
+                else if (alignStart)
+                    currentHitPoint = origin + startSnap.Forward *
+                        Mathf.Max(0f, Vector3.Dot(currentHitPoint - origin, startSnap.Forward));
+                else if (currentItem.singleSpan)
+                    currentHitPoint.y = initialBuildHeight;
 
                 lastValidHitPoint = currentHitPoint;
 
@@ -155,53 +242,44 @@ public class VRConstructionController : MonoBehaviour
                     {
                         List<Vector3> preview = new List<Vector3> { buildPoints[0], lastValidHitPoint };
                         roadBuilder.DrawGhostRoad(preview, currentItem);
+                        roadBuilder.ShowSnapIndicator(endSnap != null ? endSnap : startSnap, true);
                     }
                 }
                 else
                 {
                     Vector3 lastFixedPoint = buildPoints[buildPoints.Count - 1];
-                    float distanceXZ = Vector2.Distance(new Vector2(lastFixedPoint.x, lastFixedPoint.z),
-                                                        new Vector2(currentHitPoint.x, currentHitPoint.z));
-
-                    if (distanceXZ >= currentItem.stepDistance)
+                    float segmentLength = roadBuilder.GetSegmentLength(currentItem);
+                    if (Vector3.Distance(lastFixedPoint, currentHitPoint) >= segmentLength && endSnap == null)
                     {
                         Vector3 dirXZ = (currentHitPoint - lastFixedPoint);
                         dirXZ.y = 0;
                         if (dirXZ.sqrMagnitude < 0.0001f) dirXZ = Vector3.forward;
                         dirXZ.Normalize();
 
-                        Vector3 nextPoint = lastFixedPoint + (dirXZ * currentItem.stepDistance);
+                        Vector3 nextPoint = lastFixedPoint + ((alignStart ? startSnap.Forward : dirXZ) * segmentLength);
 
-                        if (!currentItem.singleSpan)
-                        {
+                        if (!alignStart && currentItem.snapToTerrain)
                             nextPoint.y = roadBuilder.SampleTerrainHeight(nextPoint);
-                        }
-                        else
-                        {
-                            nextPoint.y = initialBuildHeight;
-                        }
 
                         buildPoints.Add(nextPoint);
                     }
 
                     List<Vector3> previewPoints = new List<Vector3>(buildPoints);
-                    if (Vector3.Distance(lastFixedPoint, currentHitPoint) > 0.2f)
+                    if (Vector3.Distance(previewPoints[previewPoints.Count - 1], currentHitPoint) >= 0.01f)
                     {
                         previewPoints.Add(currentHitPoint);
                     }
-                    else if (previewPoints.Count == 1)
-                    {
-                        previewPoints.Add(currentHitPoint + new Vector3(0.01f, 0, 0));
-                    }
 
                     roadBuilder.DrawGhostRoad(previewPoints, currentItem);
+                    roadBuilder.ShowSnapIndicator(endSnap != null ? endSnap : startSnap, true);
                 }
             }
 
-            if (currentItem.requireRoadProximity && !currentItem.isSplineType)
+            else
             {
-                bool tooFar = roadBuilder.DistanceToNearestRoad(lastValidHitPoint) > currentItem.maxRoadDistance;
-                roadBuilder.SetGhostColor(tooFar ? Color.red : Color.white);
+                endSnap = null;
+                lastValidHitPoint = buildPoints[buildPoints.Count - 1];
+                roadBuilder.ClearGhostRoad();
             }
         }
 
@@ -211,14 +289,20 @@ public class VRConstructionController : MonoBehaviour
             {
                 currentState = ConstructionState.Idle;
 
-                if (currentItem.singleSpan && buildPoints.Count > 0)
+                if (stretchItem != null && stretchAngle != 0f)
+                    roadBuilder.PlaceRoadArc(buildPoints[0], stretchForward, stretchLength, stretchAngle,
+                        stretchItem, stretchLanes, stretchLaneWidth, startSnap, false);
+                else
                 {
-                    Vector3 endPoint = lastValidHitPoint;
-                    if (!currentItem.snapToTerrain) endPoint.y = initialBuildHeight;
-                    buildPoints.Add(endPoint);
-                }
+                    if (buildPoints.Count > 0 &&
+                        Vector3.Distance(buildPoints[buildPoints.Count - 1], lastValidHitPoint) >= 0.01f)
+                        buildPoints.Add(lastValidHitPoint);
 
-                roadBuilder.BuildFinalRoad(buildPoints, currentItem);
+                    roadBuilder.BuildFinalRoad(buildPoints, currentItem, startSnap, endSnap,
+                        stretchItem != null ? stretchLanes : 1);
+                }
+                stretchItem = null;
+                startSnap = endSnap = null;
                 buildPoints.Clear();
             }
         }
@@ -226,11 +310,157 @@ public class VRConstructionController : MonoBehaviour
         wasTriggerPressedLastFrame = isTriggerHeld;
     }
 
+    private bool TryGetBuildStart(BuildableItem item, out Vector3 cursor, out SnapPoint target)
+    {
+        bool hitGround = GetLaserHitPoint(out cursor, out _);
+        Ray ray = new Ray(handTransform.position, handTransform.forward);
+        target = roadBuilder.FindAimedSnapPoint(ray, GetSnapReach(ray, hitGround, cursor));
+
+        Vector3 offset = Vector3.up * item.heightOffset;
+        if (target == null && hitGround)
+            target = roadBuilder.FindNearestSnapPoint(cursor + offset);
+        if (target != null)
+            cursor = target.Position - offset;
+        return target != null || hitGround;
+    }
+
+    private bool TryGetBuildEnd(BuildableItem item, out Vector3 cursor, out SnapPoint target)
+    {
+        Vector3 offset = Vector3.up * item.heightOffset;
+        Vector3 origin = buildPoints[buildPoints.Count - 1] + offset;
+        bool alignStart = buildPoints.Count == 1 && startSnap != null && startSnap.Available;
+        bool hitGround = GetLaserHitPoint(out cursor, out _);
+        Ray ray = new Ray(handTransform.position, handTransform.forward);
+        target = roadBuilder.FindAimedSnapPoint(ray, GetSnapReach(ray, hitGround, cursor),
+            startSnap, candidate =>
+            {
+                Vector3 direction = candidate.Position - origin;
+                return SnapPoint.HasMatchingAxis(direction, -candidate.Forward) &&
+                    (!alignStart || SnapPoint.HasMatchingAxis(direction, startSnap.Forward));
+            });
+
+        if (target == null && hitGround)
+            target = roadBuilder.FindNearestSnapPoint(cursor + offset, startSnap,
+                origin, alignStart ? startSnap.Forward : Vector3.zero);
+        if (target != null)
+            cursor = target.Position - offset;
+        if (target == null && alignStart && item.singleSpan)
+        {
+            // Aim at the continuation of the deck, including above the terrain.
+            Vector3 axis = startSnap.Forward;
+            Vector3 delta = ray.origin - origin;
+            float alignment = Vector3.Dot(ray.direction, axis);
+            float denominator = 1f - alignment * alignment;
+            if (denominator > 0.0001f)
+            {
+                float distanceAlong = (Vector3.Dot(delta, axis) -
+                    alignment * Vector3.Dot(delta, ray.direction)) / denominator;
+                Vector3 pointOnAxis = origin + axis * distanceAlong;
+                float rayDepth = Vector3.Dot(pointOnAxis - ray.origin, ray.direction);
+                float miss = Vector3.Distance(pointOnAxis, ray.GetPoint(rayDepth));
+                if (distanceAlong >= 0.1f && rayDepth > 0f &&
+                    rayDepth <= GetSnapReach(ray, hitGround, cursor) && miss <= roadBuilder.snapRadius)
+                {
+                    cursor = pointOnAxis - offset;
+                    return true;
+                }
+            }
+        }
+        return target != null || hitGround;
+    }
+
+    private float GetSnapReach(Ray ray, bool hitGround, Vector3 cursor)
+    {
+        return hitGround
+            ? Mathf.Min(maxBuildDistance, Vector3.Distance(ray.origin, cursor) + roadBuilder.snapRadius)
+            : maxBuildDistance;
+    }
+
+    private Vector3 GetStretchForward(SnapPoint target)
+    {
+        if (target != null) return target.Forward;
+        Vector3 forward = Vector3.ProjectOnPlane(handTransform.forward, Vector3.up);
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.ProjectOnPlane(handTransform.up, Vector3.up);
+        return forward.normalized;
+    }
+
+    private void UpdateStretch(bool preview)
+    {
+        Vector3 movement = handTransform.position - stretchHandOrigin;
+        float displacement = Vector3.Dot(movement, stretchForward);
+        float length = Mathf.Clamp(stretchInitialLength + displacement, MinStretchLength, MaxStretchLength);
+        stretchLength = preview ? length : RoundStretchLength(length);
+
+        Vector3 right = Vector3.Cross(Vector3.up, stretchForward).normalized;
+        float lateral = Vector3.Dot(movement, right);
+        float steering = Mathf.Sign(lateral) * Mathf.Max(0f, Mathf.Abs(lateral) - TurnDeadZone);
+        // Leave a positive inner radius even for the widest road.
+        float minimumRadius = stretchLaneWidth * stretchLanes * 0.75f;
+        float maxAngle = Mathf.Min(MaxTurnDegrees, stretchLength /
+            Mathf.Max(minimumRadius, 0.01f) * Mathf.Rad2Deg);
+        stretchAngle = stretchLaneWidth > 0f ?
+            Mathf.Clamp(steering * TurnDegreesPerMeter, -maxAngle, maxAngle) : 0f;
+        if (Mathf.Abs(stretchAngle) < 0.5f) stretchAngle = 0f;
+
+        if (stretchAngle != 0f)
+        {
+            endSnap = null;
+            if (preview)
+            {
+                roadBuilder.PlaceRoadArc(buildPoints[0], stretchForward, stretchLength, stretchAngle,
+                    stretchItem, stretchLanes, stretchLaneWidth, startSnap, true);
+                roadBuilder.ShowSnapIndicator(startSnap, true);
+            }
+            return;
+        }
+
+        Vector3 offset = Vector3.up * stretchItem.heightOffset;
+        Vector3 origin = buildPoints[0];
+        Vector3 worldStart = origin + offset;
+        lastValidHitPoint = origin + stretchForward * length;
+        endSnap = roadBuilder.FindNearestSnapPoint(lastValidHitPoint + offset, startSnap,
+            worldStart, stretchForward, candidate =>
+            {
+                Vector3 delta = candidate.Position - worldStart;
+                float axialLength = Vector3.Dot(delta, stretchForward);
+                return axialLength >= MinStretchLength - 0.001f && axialLength <= MaxStretchLength + 0.001f &&
+                    (delta - stretchForward * axialLength).sqrMagnitude <= 0.000001f;
+            });
+        if (endSnap != null)
+            lastValidHitPoint = endSnap.Position - offset;
+        else if (!preview)
+            lastValidHitPoint = origin + stretchForward * RoundStretchLength(length);
+
+        if (preview)
+        {
+            roadBuilder.DrawStretchGhost(buildPoints[0], lastValidHitPoint, stretchItem, stretchLanes);
+            roadBuilder.ShowSnapIndicator(endSnap != null ? endSnap : startSnap, true);
+        }
+    }
+
+    private static float RoundStretchLength(float length)
+    {
+        float steps = Mathf.Round((length - MinStretchLength) / StretchStep);
+        return Mathf.Clamp(MinStretchLength + steps * StretchStep, MinStretchLength, MaxStretchLength);
+    }
+
     private void CancelConstruction()
     {
         currentState = ConstructionState.Idle;
         buildPoints.Clear();
+        startSnap = endSnap = null;
+        stretchItem = null;
         if (roadBuilder != null) roadBuilder.ClearGhostRoad();
+    }
+
+    // Ignore the menu click until the trigger has been released.
+    public void PrepareForSelection()
+    {
+        CancelConstruction();
+        ClearSingleGhost();
+        singleRotationOffset = 0f;
+        waitForTriggerRelease = true;
     }
 
     public void ResetSingleRotation()

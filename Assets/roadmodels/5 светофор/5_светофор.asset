@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: "5_\u0441\u0432\u0435\u0442\u043E\u0444\u043E\u0440"
   m_EditorClassIdentifier: 
   itemName: "\u0421\u0432\u0435\u0442\u043E\u0444\u043E\u0440"
-  previewIcon: {fileID: 0}
+  previewIcon: {fileID: 21300000, guid: df33a3722683d2748a0f90d846ab5bbb, type: 3}
+  category: 0
   finalPrefab: {fileID: 7714100213095098674, guid: 771c53f0e098400478c15f322bb2f390, type: 3}
   ghostPrefab: {fileID: 7714100213095098674, guid: 771c53f0e098400478c15f322bb2f390, type: 3}
   isSplineType: 0

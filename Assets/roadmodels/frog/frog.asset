@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d5ec8b032e5a914bbdf800ac38f341a, type: 3}
+  m_Name: frog
+  m_EditorClassIdentifier: 
+  itemName: Frog
+  previewIcon: {fileID: 21300000, guid: 5f914a84e4618184c808b4c7099180a1, type: 3}
+  category: 2
+  finalPrefab: {fileID: 333984964777348408, guid: 554e84ab4a695aa4b8e71e96c602ad1d, type: 3}
+  ghostPrefab: {fileID: 333984964777348408, guid: 554e84ab4a695aa4b8e71e96c602ad1d, type: 3}
+  isSplineType: 0
+  snapToTerrain: 1
+  segmentAxis: 0
+  useCustomSegmentEnds: 0
+  sampleDeckEnds: 0
+  useUpperDeckEdge: 0
+  deckMeshObject: 
+  hiddenMeshObject: 
+  segmentStartLocal: {x: 0, y: 0, z: 0}
+  segmentEndLocal: {x: 0, y: 0, z: 0}
+  stretchWithController: 0
+  stepDistance: 2.8
+  heightOffset: 0.04
+  rotationOffset: {x: 0, y: 0, z: 0}
+  requireRoadProximity: 1
+  maxRoadDistance: 5
+  generatePillars: 0
+  pillarWidth: 0.6
+  minPillarHeight: 1.5
+  pillarMaterial: {fileID: 0}
+  singleSpan: 0

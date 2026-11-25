@@ -59,7 +59,7 @@ namespace RoadBuilder.Core.History
         {
             if (_instance != null && _instance != this)
             {
-                Destroy(gameObject);
+                Destroy(this);
                 return;
             }
 
@@ -75,6 +75,7 @@ namespace RoadBuilder.Core.History
         /// </summary>
         public void Initialize(int limit = HistoryStack.DefaultCapacity)
         {
+            DiscardUndoneObjects();
             _historyLimit = limit;
             _historyStack = new HistoryStack(_historyLimit);
             NotifyHistoryChanged();
@@ -92,6 +93,7 @@ namespace RoadBuilder.Core.History
                 _historyStack = new HistoryStack(_historyLimit);
             }
 
+            DiscardUndoneObjects();
             _historyStack.Push(command);
             OnCommandExecuted?.Invoke(command);
             NotifyHistoryChanged();
@@ -104,7 +106,7 @@ namespace RoadBuilder.Core.History
                 return false;
             }
 
-            var command = _historyStack.PopUndo();
+            var command = _historyStack.PeekUndo();
             if (command == null)
             {
                 return false;
@@ -122,6 +124,7 @@ namespace RoadBuilder.Core.History
 
             if (success)
             {
+                _historyStack.PopUndo();
                 OnCommandUndone?.Invoke(command);
             }
 
@@ -136,7 +139,7 @@ namespace RoadBuilder.Core.History
                 return false;
             }
 
-            var command = _historyStack.PopRedo();
+            var command = _historyStack.PeekRedo();
             if (command == null)
             {
                 return false;
@@ -154,6 +157,7 @@ namespace RoadBuilder.Core.History
 
             if (success)
             {
+                _historyStack.PopRedo();
                 OnCommandRedone?.Invoke(command);
             }
 
@@ -165,6 +169,7 @@ namespace RoadBuilder.Core.History
         {
             if (_historyStack != null)
             {
+                DiscardUndoneObjects();
                 _historyStack.Clear();
                 NotifyHistoryChanged();
             }
@@ -178,6 +183,20 @@ namespace RoadBuilder.Core.History
         public string GetRedoActionName()
         {
             return _historyStack?.PeekRedo()?.Description ?? string.Empty;
+        }
+
+        private void DiscardUndoneObjects()
+        {
+            if (_historyStack == null) return;
+
+            foreach (var command in _historyStack.RedoCommands)
+            {
+                if (command is SpawnObjectCommand spawn && spawn.TargetObject != null &&
+                    !spawn.TargetObject.activeSelf)
+                {
+                    Destroy(spawn.TargetObject);
+                }
+            }
         }
 
         private void NotifyHistoryChanged()

@@ -14,10 +14,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: "\u0417\u043D\u0430\u043A \xAB\u041F\u0435\u0448\u0435\u0445\u043E\u0434\xBB"
   previewIcon: {fileID: 0}
-  finalPrefab: {fileID: 4556769112136310611, guid: 69ec2bcb11dc25042a4d612d7f56e394, type: 3}
-  ghostPrefab: {fileID: 4556769112136310611, guid: 69ec2bcb11dc25042a4d612d7f56e394, type: 3}
+  category: 0
+  finalPrefab: {fileID: 3993439459508269081, guid: fde8896dcea3f0b4591bcf3ae859b0c3, type: 3}
+  ghostPrefab: {fileID: 3993439459508269081, guid: fde8896dcea3f0b4591bcf3ae859b0c3, type: 3}
   isSplineType: 0
   snapToTerrain: 1
+  segmentAxis: 0
+  useCustomSegmentEnds: 0
+  sampleDeckEnds: 0
+  useUpperDeckEdge: 0
+  deckMeshObject: 
+  hiddenMeshObject: 
+  segmentStartLocal: {x: 0, y: 0, z: 0}
+  segmentEndLocal: {x: 0, y: 0, z: 0}
+  stretchWithController: 0
   stepDistance: 2.8
   heightOffset: 0.04
   rotationOffset: {x: 0, y: 0, z: 0}
